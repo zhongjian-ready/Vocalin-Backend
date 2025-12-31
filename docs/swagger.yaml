@@ -1,0 +1,665 @@
+basePath: /api
+definitions:
+  gorm.DeletedAt:
+    properties:
+      time:
+        type: string
+      valid:
+        description: Valid is true if Time is not NULL
+        type: boolean
+    type: object
+  internal_handlers.CreateAnniversaryRequest:
+    properties:
+      date:
+        type: string
+      title:
+        type: string
+    required:
+    - date
+    - title
+    type: object
+  internal_handlers.CreateGroupRequest:
+    properties:
+      name:
+        type: string
+    required:
+    - name
+    type: object
+  internal_handlers.CreateNoteRequest:
+    properties:
+      color:
+        type: string
+      content:
+        type: string
+      show_at:
+        type: string
+      type:
+        description: '"normal", "burn", "timed"'
+        type: string
+    required:
+    - content
+    type: object
+  internal_handlers.CreatePhotoRequest:
+    properties:
+      description:
+        type: string
+      url:
+        type: string
+    required:
+    - url
+    type: object
+  internal_handlers.CreateWishlistRequest:
+    properties:
+      content:
+        type: string
+    required:
+    - content
+    type: object
+  internal_handlers.JoinGroupRequest:
+    properties:
+      invite_code:
+        type: string
+    required:
+    - invite_code
+    type: object
+  internal_handlers.LoginRequest:
+    properties:
+      avatar_url:
+        type: string
+      nickname:
+        type: string
+      wechat_id:
+        type: string
+    required:
+    - wechat_id
+    type: object
+  internal_handlers.UpdatePinnedMessageRequest:
+    properties:
+      content:
+        type: string
+    required:
+    - content
+    type: object
+  internal_handlers.UpdateStatusRequest:
+    properties:
+      status:
+        type: string
+    required:
+    - status
+    type: object
+  internal_handlers.UpdateTimerRequest:
+    properties:
+      start_date:
+        type: string
+      title:
+        type: string
+    required:
+    - start_date
+    - title
+    type: object
+  vocalin-backend_internal_models.Anniversary:
+    properties:
+      createdAt:
+        type: string
+      date:
+        type: string
+      deletedAt:
+        $ref: '#/definitions/gorm.DeletedAt'
+      group_id:
+        type: integer
+      id:
+        type: integer
+      title:
+        type: string
+      updatedAt:
+        type: string
+      user_id:
+        type: integer
+    type: object
+  vocalin-backend_internal_models.Comment:
+    properties:
+      content:
+        type: string
+      createdAt:
+        type: string
+      deletedAt:
+        $ref: '#/definitions/gorm.DeletedAt'
+      id:
+        type: integer
+      photo_id:
+        type: integer
+      updatedAt:
+        type: string
+      user:
+        $ref: '#/definitions/vocalin-backend_internal_models.User'
+      user_id:
+        type: integer
+    type: object
+  vocalin-backend_internal_models.Group:
+    properties:
+      createdAt:
+        type: string
+      creator_id:
+        type: integer
+      deletedAt:
+        $ref: '#/definitions/gorm.DeletedAt'
+      id:
+        type: integer
+      invite_code:
+        type: string
+      members:
+        items:
+          $ref: '#/definitions/vocalin-backend_internal_models.User'
+        type: array
+      name:
+        type: string
+      pinned_message:
+        type: string
+      pinned_message_author_id:
+        type: integer
+      timer_start_date:
+        type: string
+      timer_title:
+        type: string
+      updatedAt:
+        type: string
+    type: object
+  vocalin-backend_internal_models.Like:
+    properties:
+      createdAt:
+        type: string
+      deletedAt:
+        $ref: '#/definitions/gorm.DeletedAt'
+      id:
+        type: integer
+      photo_id:
+        type: integer
+      updatedAt:
+        type: string
+      user_id:
+        type: integer
+    type: object
+  vocalin-backend_internal_models.Note:
+    properties:
+      author:
+        $ref: '#/definitions/vocalin-backend_internal_models.User'
+      author_id:
+        type: integer
+      color:
+        type: string
+      content:
+        type: string
+      createdAt:
+        type: string
+      deletedAt:
+        $ref: '#/definitions/gorm.DeletedAt'
+      group_id:
+        type: integer
+      id:
+        type: integer
+      is_burned:
+        type: boolean
+      show_at:
+        type: string
+      type:
+        description: '"normal", "burn", "timed"'
+        type: string
+      updatedAt:
+        type: string
+    type: object
+  vocalin-backend_internal_models.Photo:
+    properties:
+      comments:
+        items:
+          $ref: '#/definitions/vocalin-backend_internal_models.Comment'
+        type: array
+      createdAt:
+        type: string
+      deletedAt:
+        $ref: '#/definitions/gorm.DeletedAt'
+      description:
+        type: string
+      group_id:
+        type: integer
+      id:
+        type: integer
+      likes:
+        items:
+          $ref: '#/definitions/vocalin-backend_internal_models.Like'
+        type: array
+      updatedAt:
+        type: string
+      uploader_id:
+        type: integer
+      url:
+        type: string
+    type: object
+  vocalin-backend_internal_models.User:
+    properties:
+      avatar_url:
+        type: string
+      createdAt:
+        type: string
+      current_status:
+        type: string
+      deletedAt:
+        $ref: '#/definitions/gorm.DeletedAt'
+      group_id:
+        description: Nullable if not in a group
+        type: integer
+      id:
+        type: integer
+      nickname:
+        type: string
+      status_updated_at:
+        type: string
+      updatedAt:
+        type: string
+      wechat_id:
+        type: string
+    type: object
+  vocalin-backend_internal_models.Wishlist:
+    properties:
+      completed_at:
+        type: string
+      content:
+        type: string
+      createdAt:
+        type: string
+      deletedAt:
+        $ref: '#/definitions/gorm.DeletedAt'
+      group_id:
+        type: integer
+      id:
+        type: integer
+      is_completed:
+        type: boolean
+      updatedAt:
+        type: string
+    type: object
+host: localhost:8080
+info:
+  contact: {}
+  description: API for Vocalin (窝聚) App
+  title: Vocalin API
+  version: "1.0"
+paths:
+  /auth/login:
+    post:
+      consumes:
+      - application/json
+      description: Login with WeChat ID, creates user if not exists
+      parameters:
+      - description: Login Request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_handlers.LoginRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/vocalin-backend_internal_models.User'
+      summary: User Login
+      tags:
+      - Auth
+  /groups:
+    post:
+      consumes:
+      - application/json
+      description: Create a new group and join it
+      parameters:
+      - description: Create Group Request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_handlers.CreateGroupRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/vocalin-backend_internal_models.Group'
+      security:
+      - ApiKeyAuth: []
+      summary: Create a new group
+      tags:
+      - Group
+  /groups/join:
+    post:
+      consumes:
+      - application/json
+      description: Join a group by invite code
+      parameters:
+      - description: Join Group Request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_handlers.JoinGroupRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/vocalin-backend_internal_models.Group'
+      security:
+      - ApiKeyAuth: []
+      summary: Join a group
+      tags:
+      - Group
+  /groups/me:
+    get:
+      description: Get info of the group the user belongs to
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/vocalin-backend_internal_models.Group'
+      security:
+      - ApiKeyAuth: []
+      summary: Get current group info
+      tags:
+      - Group
+  /home/dashboard:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - ApiKeyAuth: []
+      summary: Get home dashboard data
+      tags:
+      - Home
+  /home/pinned:
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: Update Pinned Message Request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_handlers.UpdatePinnedMessageRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/vocalin-backend_internal_models.Group'
+      security:
+      - ApiKeyAuth: []
+      summary: Update pinned message
+      tags:
+      - Home
+  /home/status:
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: Update Status Request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_handlers.UpdateStatusRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/vocalin-backend_internal_models.User'
+      security:
+      - ApiKeyAuth: []
+      summary: Update user status
+      tags:
+      - Home
+  /home/timer:
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: Update Timer Request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_handlers.UpdateTimerRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/vocalin-backend_internal_models.Group'
+      security:
+      - ApiKeyAuth: []
+      summary: Update companion timer
+      tags:
+      - Home
+  /profile/anniversaries:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/vocalin-backend_internal_models.Anniversary'
+            type: array
+      security:
+      - ApiKeyAuth: []
+      summary: List anniversaries
+      tags:
+      - Profile
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Create Anniversary Request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_handlers.CreateAnniversaryRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/vocalin-backend_internal_models.Anniversary'
+      security:
+      - ApiKeyAuth: []
+      summary: Add anniversary
+      tags:
+      - Profile
+  /profile/export:
+    post:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - ApiKeyAuth: []
+      summary: Export data to email
+      tags:
+      - Profile
+  /profile/leave:
+    post:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - ApiKeyAuth: []
+      summary: Leave current group
+      tags:
+      - Profile
+  /records/notes:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/vocalin-backend_internal_models.Note'
+            type: array
+      security:
+      - ApiKeyAuth: []
+      summary: List sticky notes
+      tags:
+      - Records
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Create Note Request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_handlers.CreateNoteRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/vocalin-backend_internal_models.Note'
+      security:
+      - ApiKeyAuth: []
+      summary: Create a sticky note
+      tags:
+      - Records
+  /records/photos:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/vocalin-backend_internal_models.Photo'
+            type: array
+      security:
+      - ApiKeyAuth: []
+      summary: List photos
+      tags:
+      - Records
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Create Photo Request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_handlers.CreatePhotoRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/vocalin-backend_internal_models.Photo'
+      security:
+      - ApiKeyAuth: []
+      summary: Upload a photo
+      tags:
+      - Records
+  /records/wishlist:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/vocalin-backend_internal_models.Wishlist'
+            type: array
+      security:
+      - ApiKeyAuth: []
+      summary: List wishlist items
+      tags:
+      - Records
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Create Wishlist Request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_handlers.CreateWishlistRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/vocalin-backend_internal_models.Wishlist'
+      security:
+      - ApiKeyAuth: []
+      summary: Add wishlist item
+      tags:
+      - Records
+  /records/wishlist/{id}/complete:
+    put:
+      parameters:
+      - description: Wishlist Item ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/vocalin-backend_internal_models.Wishlist'
+      security:
+      - ApiKeyAuth: []
+      summary: Mark wishlist item as completed
+      tags:
+      - Records
+securityDefinitions:
+  ApiKeyAuth:
+    in: header
+    name: X-User-ID
+    type: apiKey
+swagger: "2.0"
