@@ -5,7 +5,6 @@ import (
 	_ "vocalin-backend/docs" // Import generated docs
 	"vocalin-backend/internal/config"
 	"vocalin-backend/internal/database"
-	"vocalin-backend/internal/models"
 	"vocalin-backend/internal/routes"
 )
 
@@ -25,16 +24,7 @@ func main() {
 	database.ConnectDB(cfg)
 
 	// Auto Migrate
-	err := database.DB.AutoMigrate(
-		&models.Group{},
-		&models.User{},
-		&models.Photo{},
-		&models.Comment{},
-		&models.Like{},
-		&models.Note{},
-		&models.Wishlist{},
-		&models.Anniversary{},
-	)
+	err := database.AutoMigrate()
 	if err != nil {
 		log.Fatal("Failed to migrate database: ", err)
 	}

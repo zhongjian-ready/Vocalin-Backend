@@ -34,11 +34,12 @@ func CreateGroup(c *gin.Context) {
 		return
 	}
 
-	userID := c.MustGet("userID").(uint)
-	
+	user, ok := mustCurrentUser(c)
+	if !ok {
+		return
+	}
+
 	// Check if user is already in a group
-	var user models.User
-	database.DB.First(&user, userID)
 	if user.GroupID != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "User already in a group"})
 		return
@@ -48,25 +49,14 @@ func CreateGroup(c *gin.Context) {
 	group := models.Group{
 		Name:       req.Name,
 		InviteCode: inviteCode,
-		CreatorID:  userID,
+		CreatorID:  user.ID,
 	}
 
-	tx := database.DB.Begin()
-	if err := tx.Create(&group).Error; err != nil {
-		tx.Rollback()
+	if err := database.Queries.CreateGroupWithCreator(user, &group); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create group"})
 		return
 	}
 
-	// Add user to group
-	user.GroupID = &group.ID
-	if err := tx.Save(&user).Error; err != nil {
-		tx.Rollback()
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to join group"})
-		return
-	}
-
-	tx.Commit()
 	c.JSON(http.StatusOK, group)
 }
 
@@ -87,27 +77,28 @@ func JoinGroup(c *gin.Context) {
 		return
 	}
 
-	userID := c.MustGet("userID").(uint)
-	var user models.User
-	database.DB.First(&user, userID)
+	user, ok := mustCurrentUser(c)
+	if !ok {
+		return
+	}
+
 	if user.GroupID != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "User already in a group"})
 		return
 	}
 
-	var group models.Group
-	if err := database.DB.Where("invite_code = ?", req.InviteCode).First(&group).Error; err != nil {
+	group, err := database.Queries.GetGroupByInviteCode(req.InviteCode)
+	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Invalid invite code"})
 		return
 	}
 
-	user.GroupID = &group.ID
-	if err := database.DB.Save(&user).Error; err != nil {
+	if err := database.Queries.AddUserToGroup(user, group.ID); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to join group"})
 		return
 	}
 
-	c.JSON(http.StatusOK, group)
+	c.JSON(http.StatusOK, *group)
 }
 
 // GetGroupInfo godoc
@@ -119,20 +110,16 @@ func JoinGroup(c *gin.Context) {
 // @Success 200 {object} models.Group
 // @Router /groups/me [get]
 func GetGroupInfo(c *gin.Context) {
-	userID := c.MustGet("userID").(uint)
-	var user models.User
-	database.DB.First(&user, userID)
-
-	if user.GroupID == nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "User not in a group"})
+	_, groupID, ok := mustCurrentGroupUser(c)
+	if !ok {
 		return
 	}
 
-	var group models.Group
-	if err := database.DB.Preload("Members").First(&group, *user.GroupID).Error; err != nil {
+	group, err := database.Queries.GetGroupWithMembers(groupID)
+	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Group not found"})
 		return
 	}
 
-	c.JSON(http.StatusOK, group)
+	c.JSON(http.StatusOK, *group)
 }

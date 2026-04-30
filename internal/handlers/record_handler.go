@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"net/http"
+	"strconv"
 	"time"
 	"vocalin-backend/internal/database"
 	"vocalin-backend/internal/models"
@@ -41,23 +42,19 @@ func CreatePhoto(c *gin.Context) {
 		return
 	}
 
-	userID := c.MustGet("userID").(uint)
-	var user models.User
-	database.DB.First(&user, userID)
-
-	if user.GroupID == nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "User not in a group"})
+	user, groupID, ok := mustCurrentGroupUser(c)
+	if !ok {
 		return
 	}
 
 	photo := models.Photo{
-		GroupID:     *user.GroupID,
-		UploaderID:  userID,
+		GroupID:     groupID,
+		UploaderID:  user.ID,
 		URL:         req.URL,
 		Description: req.Description,
 	}
 
-	if err := database.DB.Create(&photo).Error; err != nil {
+	if err := database.Queries.CreatePhoto(&photo); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create photo"})
 		return
 	}
@@ -73,17 +70,16 @@ func CreatePhoto(c *gin.Context) {
 // @Success 200 {array} models.Photo
 // @Router /records/photos [get]
 func GetPhotos(c *gin.Context) {
-	userID := c.MustGet("userID").(uint)
-	var user models.User
-	database.DB.First(&user, userID)
-
-	if user.GroupID == nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "User not in a group"})
+	_, groupID, ok := mustCurrentGroupUser(c)
+	if !ok {
 		return
 	}
 
-	var photos []models.Photo
-	database.DB.Where("group_id = ?", *user.GroupID).Preload("Comments").Preload("Likes").Order("created_at desc").Find(&photos)
+	photos, err := database.Queries.ListPhotosByGroup(groupID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load photos"})
+		return
+	}
 
 	c.JSON(http.StatusOK, photos)
 }
@@ -104,25 +100,21 @@ func CreateNote(c *gin.Context) {
 		return
 	}
 
-	userID := c.MustGet("userID").(uint)
-	var user models.User
-	database.DB.First(&user, userID)
-
-	if user.GroupID == nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "User not in a group"})
+	user, groupID, ok := mustCurrentGroupUser(c)
+	if !ok {
 		return
 	}
 
 	note := models.Note{
-		GroupID:  *user.GroupID,
-		AuthorID: userID,
+		GroupID:  groupID,
+		AuthorID: user.ID,
 		Content:  req.Content,
 		Color:    req.Color,
 		Type:     req.Type,
 		ShowAt:   req.ShowAt,
 	}
 
-	if err := database.DB.Create(&note).Error; err != nil {
+	if err := database.Queries.CreateNote(&note); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create note"})
 		return
 	}
@@ -138,19 +130,17 @@ func CreateNote(c *gin.Context) {
 // @Success 200 {array} models.Note
 // @Router /records/notes [get]
 func GetNotes(c *gin.Context) {
-	userID := c.MustGet("userID").(uint)
-	var user models.User
-	database.DB.First(&user, userID)
-
-	if user.GroupID == nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "User not in a group"})
+	_, groupID, ok := mustCurrentGroupUser(c)
+	if !ok {
 		return
 	}
 
-	var notes []models.Note
 	// Filter out timed notes that shouldn't be shown yet
-	now := time.Now()
-	database.DB.Where("group_id = ? AND (show_at IS NULL OR show_at <= ?)", *user.GroupID, now).Order("created_at desc").Find(&notes)
+	notes, err := database.Queries.ListVisibleNotesByGroup(groupID, time.Now())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load notes"})
+		return
+	}
 
 	c.JSON(http.StatusOK, notes)
 }
@@ -171,21 +161,17 @@ func CreateWishlist(c *gin.Context) {
 		return
 	}
 
-	userID := c.MustGet("userID").(uint)
-	var user models.User
-	database.DB.First(&user, userID)
-
-	if user.GroupID == nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "User not in a group"})
+	_, groupID, ok := mustCurrentGroupUser(c)
+	if !ok {
 		return
 	}
 
 	item := models.Wishlist{
-		GroupID: *user.GroupID,
+		GroupID: groupID,
 		Content: req.Content,
 	}
 
-	if err := database.DB.Create(&item).Error; err != nil {
+	if err := database.Queries.CreateWishlistItem(&item); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create wishlist item"})
 		return
 	}
@@ -201,17 +187,16 @@ func CreateWishlist(c *gin.Context) {
 // @Success 200 {array} models.Wishlist
 // @Router /records/wishlist [get]
 func GetWishlist(c *gin.Context) {
-	userID := c.MustGet("userID").(uint)
-	var user models.User
-	database.DB.First(&user, userID)
-
-	if user.GroupID == nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "User not in a group"})
+	_, groupID, ok := mustCurrentGroupUser(c)
+	if !ok {
 		return
 	}
 
-	var items []models.Wishlist
-	database.DB.Where("group_id = ?", *user.GroupID).Order("created_at desc").Find(&items)
+	items, err := database.Queries.ListWishlistByGroup(groupID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load wishlist"})
+		return
+	}
 
 	c.JSON(http.StatusOK, items)
 }
@@ -225,9 +210,24 @@ func GetWishlist(c *gin.Context) {
 // @Success 200 {object} models.Wishlist
 // @Router /records/wishlist/{id}/complete [put]
 func CompleteWishlist(c *gin.Context) {
-	id := c.Param("id")
-	var item models.Wishlist
-	if err := database.DB.First(&item, id).Error; err != nil {
+	_, groupID, ok := mustCurrentGroupUser(c)
+	if !ok {
+		return
+	}
+
+	itemID, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid item id"})
+		return
+	}
+
+	item, err := database.Queries.GetWishlistItemByID(uint(itemID))
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Item not found"})
+		return
+	}
+
+	if item.GroupID != groupID {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Item not found"})
 		return
 	}
@@ -235,7 +235,10 @@ func CompleteWishlist(c *gin.Context) {
 	now := time.Now()
 	item.IsCompleted = true
 	item.CompletedAt = &now
-	database.DB.Save(&item)
+	if err := database.Queries.SaveWishlistItem(item); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to complete wishlist item"})
+		return
+	}
 
-	c.JSON(http.StatusOK, item)
+	c.JSON(http.StatusOK, *item)
 }

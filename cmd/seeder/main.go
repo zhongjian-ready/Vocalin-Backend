@@ -33,25 +33,15 @@ func main() {
 		StatusUpdatedAt: time.Now(),
 	}
 
-	// Check if users exist
-	var count int64
-	database.DB.Model(&models.User{}).Where("wechat_id = ?", user1.WeChatID).Count(&count)
-	if count == 0 {
-		database.DB.Create(&user1)
-		log.Printf("Created User: %s (ID: %d)", user1.Nickname, user1.ID)
-	} else {
-		database.DB.Where("wechat_id = ?", user1.WeChatID).First(&user1)
-		log.Printf("User exists: %s (ID: %d)", user1.Nickname, user1.ID)
+	if err := database.Queries.EnsureUserByWeChatID(&user1); err != nil {
+		log.Fatalf("Failed to seed user %s: %v", user1.WeChatID, err)
 	}
+	log.Printf("Ensured User: %s (ID: %d)", user1.Nickname, user1.ID)
 
-	database.DB.Model(&models.User{}).Where("wechat_id = ?", user2.WeChatID).Count(&count)
-	if count == 0 {
-		database.DB.Create(&user2)
-		log.Printf("Created User: %s (ID: %d)", user2.Nickname, user2.ID)
-	} else {
-		database.DB.Where("wechat_id = ?", user2.WeChatID).First(&user2)
-		log.Printf("User exists: %s (ID: %d)", user2.Nickname, user2.ID)
+	if err := database.Queries.EnsureUserByWeChatID(&user2); err != nil {
+		log.Fatalf("Failed to seed user %s: %v", user2.WeChatID, err)
 	}
+	log.Printf("Ensured User: %s (ID: %d)", user2.Nickname, user2.ID)
 
 	// 2. Create Group
 	group := models.Group{
@@ -64,20 +54,20 @@ func main() {
 		PinnedMessageAuthorID: user1.ID,
 	}
 
-	database.DB.Model(&models.Group{}).Where("invite_code = ?", group.InviteCode).Count(&count)
-	if count == 0 {
-		database.DB.Create(&group)
-		log.Printf("Created Group: %s (ID: %d)", group.Name, group.ID)
-	} else {
-		database.DB.Where("invite_code = ?", group.InviteCode).First(&group)
-		log.Printf("Group exists: %s (ID: %d)", group.Name, group.ID)
+	if err := database.Queries.EnsureGroupByInviteCode(&group); err != nil {
+		log.Fatalf("Failed to seed group %s: %v", group.InviteCode, err)
 	}
+	log.Printf("Ensured Group: %s (ID: %d)", group.Name, group.ID)
 
 	// 3. Assign Users to Group
 	user1.GroupID = &group.ID
 	user2.GroupID = &group.ID
-	database.DB.Save(&user1)
-	database.DB.Save(&user2)
+	if err := database.Queries.SaveUser(&user1); err != nil {
+		log.Fatalf("Failed to assign user %d to group: %v", user1.ID, err)
+	}
+	if err := database.Queries.SaveUser(&user2); err != nil {
+		log.Fatalf("Failed to assign user %d to group: %v", user2.ID, err)
+	}
 	log.Println("Assigned users to group")
 
 	// 4. Create Records (Photos)
@@ -97,7 +87,9 @@ func main() {
 	}
 
 	for _, p := range photos {
-		database.DB.Create(&p)
+		if err := database.Queries.CreatePhoto(&p); err != nil {
+			log.Fatalf("Failed to seed photo: %v", err)
+		}
 	}
 	log.Printf("Created %d photos", len(photos))
 
@@ -119,7 +111,9 @@ func main() {
 		},
 	}
 	for _, n := range notes {
-		database.DB.Create(&n)
+		if err := database.Queries.CreateNote(&n); err != nil {
+			log.Fatalf("Failed to seed note: %v", err)
+		}
 	}
 	log.Printf("Created %d notes", len(notes))
 
@@ -137,7 +131,9 @@ func main() {
 		},
 	}
 	for _, w := range wishes {
-		database.DB.Create(&w)
+		if err := database.Queries.CreateWishlistItem(&w); err != nil {
+			log.Fatalf("Failed to seed wishlist item: %v", err)
+		}
 	}
 	log.Printf("Created %d wishlist items", len(wishes))
 
@@ -157,7 +153,9 @@ func main() {
 		},
 	}
 	for _, a := range anniversaries {
-		database.DB.Create(&a)
+		if err := database.Queries.CreateAnniversary(&a); err != nil {
+			log.Fatalf("Failed to seed anniversary: %v", err)
+		}
 	}
 	log.Printf("Created %d anniversaries", len(anniversaries))
 

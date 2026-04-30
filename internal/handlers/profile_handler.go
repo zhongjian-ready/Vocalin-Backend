@@ -30,23 +30,19 @@ func CreateAnniversary(c *gin.Context) {
 		return
 	}
 
-	userID := c.MustGet("userID").(uint)
-	var user models.User
-	database.DB.First(&user, userID)
-
-	if user.GroupID == nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "User not in a group"})
+	user, groupID, ok := mustCurrentGroupUser(c)
+	if !ok {
 		return
 	}
 
 	anniversary := models.Anniversary{
-		UserID:  userID,
-		GroupID: *user.GroupID,
+		UserID:  user.ID,
+		GroupID: groupID,
 		Title:   req.Title,
 		Date:    req.Date,
 	}
 
-	if err := database.DB.Create(&anniversary).Error; err != nil {
+	if err := database.Queries.CreateAnniversary(&anniversary); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create anniversary"})
 		return
 	}
@@ -62,17 +58,16 @@ func CreateAnniversary(c *gin.Context) {
 // @Success 200 {array} models.Anniversary
 // @Router /profile/anniversaries [get]
 func GetAnniversaries(c *gin.Context) {
-	userID := c.MustGet("userID").(uint)
-	var user models.User
-	database.DB.First(&user, userID)
-
-	if user.GroupID == nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "User not in a group"})
+	_, groupID, ok := mustCurrentGroupUser(c)
+	if !ok {
 		return
 	}
 
-	var anniversaries []models.Anniversary
-	database.DB.Where("group_id = ?", *user.GroupID).Order("date asc").Find(&anniversaries)
+	anniversaries, err := database.Queries.ListAnniversariesByGroup(groupID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load anniversaries"})
+		return
+	}
 
 	c.JSON(http.StatusOK, anniversaries)
 }
@@ -85,17 +80,15 @@ func GetAnniversaries(c *gin.Context) {
 // @Success 200 {object} map[string]string
 // @Router /profile/leave [post]
 func LeaveGroup(c *gin.Context) {
-	userID := c.MustGet("userID").(uint)
-	var user models.User
-	database.DB.First(&user, userID)
-
-	if user.GroupID == nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "User not in a group"})
+	user, _, ok := mustCurrentGroupUser(c)
+	if !ok {
 		return
 	}
 
-	user.GroupID = nil
-	database.DB.Save(&user)
+	if err := database.Queries.RemoveUserFromGroup(user); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to leave group"})
+		return
+	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Left group successfully"})
 }

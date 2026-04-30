@@ -1,12 +1,13 @@
 package handlers
 
 import (
+	"errors"
 	"net/http"
 	"time"
 	"vocalin-backend/internal/database"
-	"vocalin-backend/internal/models"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 type UpdateTimerRequest struct {
@@ -38,22 +39,18 @@ func UpdateTimer(c *gin.Context) {
 		return
 	}
 
-	userID := c.MustGet("userID").(uint)
-	var user models.User
-	database.DB.First(&user, userID)
-
-	if user.GroupID == nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "User not in a group"})
+	_, groupID, ok := mustCurrentGroupUser(c)
+	if !ok {
 		return
 	}
 
-	var group models.Group
-	database.DB.First(&group, *user.GroupID)
-	group.TimerTitle = req.Title
-	group.TimerStartDate = req.StartDate
-	database.DB.Save(&group)
+	group, err := database.Queries.UpdateGroupTimer(groupID, req.Title, req.StartDate)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update timer"})
+		return
+	}
 
-	c.JSON(http.StatusOK, group)
+	c.JSON(http.StatusOK, *group)
 }
 
 // UpdateStatus godoc
@@ -72,15 +69,17 @@ func UpdateStatus(c *gin.Context) {
 		return
 	}
 
-	userID := c.MustGet("userID").(uint)
-	var user models.User
-	database.DB.First(&user, userID)
+	user, ok := mustCurrentUser(c)
+	if !ok {
+		return
+	}
 
-	user.CurrentStatus = req.Status
-	user.StatusUpdatedAt = time.Now()
-	database.DB.Save(&user)
+	if err := database.Queries.UpdateUserStatus(user, req.Status, time.Now()); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update status"})
+		return
+	}
 
-	c.JSON(http.StatusOK, user)
+	c.JSON(http.StatusOK, *user)
 }
 
 // UpdatePinnedMessage godoc
@@ -99,22 +98,18 @@ func UpdatePinnedMessage(c *gin.Context) {
 		return
 	}
 
-	userID := c.MustGet("userID").(uint)
-	var user models.User
-	database.DB.First(&user, userID)
-
-	if user.GroupID == nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "User not in a group"})
+	user, groupID, ok := mustCurrentGroupUser(c)
+	if !ok {
 		return
 	}
 
-	var group models.Group
-	database.DB.First(&group, *user.GroupID)
-	group.PinnedMessage = req.Content
-	group.PinnedMessageAuthorID = userID
-	database.DB.Save(&group)
+	group, err := database.Queries.UpdatePinnedMessage(groupID, user.ID, req.Content)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update pinned message"})
+		return
+	}
 
-	c.JSON(http.StatusOK, group)
+	c.JSON(http.StatusOK, *group)
 }
 
 // GetHomeDashboard godoc
@@ -125,32 +120,37 @@ func UpdatePinnedMessage(c *gin.Context) {
 // @Success 200 {object} map[string]interface{}
 // @Router /home/dashboard [get]
 func GetHomeDashboard(c *gin.Context) {
-	userID := c.MustGet("userID").(uint)
-	var user models.User
-	database.DB.First(&user, userID)
-
-	if user.GroupID == nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "User not in a group"})
+	_, groupID, ok := mustCurrentGroupUser(c)
+	if !ok {
 		return
 	}
 
-	var group models.Group
-	database.DB.Preload("Members").First(&group, *user.GroupID)
+	group, err := database.Queries.GetGroupWithMembers(groupID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Group not found"})
+		return
+	}
 
 	// Get recent activity (latest photo or note)
-	var latestPhoto models.Photo
-	database.DB.Where("group_id = ?", group.ID).Order("created_at desc").First(&latestPhoto)
+	latestPhoto, photoErr := database.Queries.GetLatestPhotoByGroup(group.ID)
+	if photoErr != nil && !errors.Is(photoErr, gorm.ErrRecordNotFound) {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load recent photo"})
+		return
+	}
 
-	var latestNote models.Note
-	database.DB.Where("group_id = ?", group.ID).Order("created_at desc").First(&latestNote)
+	latestNote, noteErr := database.Queries.GetLatestNoteByGroup(group.ID)
+	if noteErr != nil && !errors.Is(noteErr, gorm.ErrRecordNotFound) {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load recent note"})
+		return
+	}
 
 	var recentActivity interface{}
-	if latestPhoto.ID != 0 && (latestNote.ID == 0 || latestPhoto.CreatedAt.After(latestNote.CreatedAt)) {
+	if latestPhoto != nil && (latestNote == nil || latestPhoto.CreatedAt.After(latestNote.CreatedAt)) {
 		recentActivity = map[string]interface{}{
 			"type": "photo",
 			"data": latestPhoto,
 		}
-	} else if latestNote.ID != 0 {
+	} else if latestNote != nil {
 		recentActivity = map[string]interface{}{
 			"type": "note",
 			"data": latestNote,

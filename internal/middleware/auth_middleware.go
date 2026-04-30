@@ -4,7 +4,6 @@ import (
 	"net/http"
 	"strconv"
 	"vocalin-backend/internal/database"
-	"vocalin-backend/internal/models"
 
 	"github.com/gin-gonic/gin"
 )
@@ -25,15 +24,15 @@ func AuthMiddleware() gin.HandlerFunc {
 			return
 		}
 
-		var user models.User
-		if err := database.DB.First(&user, userID).Error; err != nil {
+		user, err := database.Queries.GetUserByID(uint(userID))
+		if err != nil {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized: User not found"})
 			c.Abort()
 			return
 		}
 
 		c.Set("userID", uint(userID))
-		c.Set("user", user)
+		c.Set("user", *user)
 		c.Next()
 	}
 }

@@ -1,12 +1,14 @@
 package handlers
 
 import (
+	"errors"
 	"net/http"
 	"time"
 	"vocalin-backend/internal/database"
 	"vocalin-backend/internal/models"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 type LoginRequest struct {
@@ -32,9 +34,13 @@ func Login(c *gin.Context) {
 	}
 
 	var user models.User
-	result := database.DB.Where("wechat_id = ?", req.WeChatID).First(&user)
+	existingUser, err := database.Queries.GetUserByWeChatID(req.WeChatID)
+	if err != nil {
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to query user"})
+			return
+		}
 
-	if result.Error != nil {
 		// Create new user
 		user = models.User{
 			WeChatID:        req.WeChatID,
@@ -42,15 +48,19 @@ func Login(c *gin.Context) {
 			AvatarURL:       req.AvatarURL,
 			StatusUpdatedAt: time.Now(),
 		}
-		if err := database.DB.Create(&user).Error; err != nil {
+		if err := database.Queries.CreateUser(&user); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create user"})
 			return
 		}
 	} else {
 		// Update info
+		user = *existingUser
 		user.Nickname = req.Nickname
 		user.AvatarURL = req.AvatarURL
-		database.DB.Save(&user)
+		if err := database.Queries.SaveUser(&user); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update user"})
+			return
+		}
 	}
 
 	c.JSON(http.StatusOK, user)

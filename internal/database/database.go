@@ -10,6 +10,7 @@ import (
 )
 
 var DB *gorm.DB
+var Queries *Store
 
 func ConnectDB(cfg *config.Config) {
 	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=utf8mb4&parseTime=True&loc=Local",
@@ -25,6 +26,8 @@ func ConnectDB(cfg *config.Config) {
 	if err != nil {
 		log.Fatal("Failed to connect to database: ", err)
 	}
+
+	Queries = NewStore(DB)
 
 	log.Println("Database connected successfully")
 }
