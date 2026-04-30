@@ -36,7 +36,6 @@ func NewGroupHandler(groupService *service.GroupService) *GroupHandler {
 // @Security BearerAuth
 // @Success 200 {object} response.APIResponse{data=GroupResponse}
 // @Router /groups/create [post]
-// @Router /groups [post]
 func (h *GroupHandler) CreateGroup(c *gin.Context) {
 	var req CreateGroupRequest
 	if err := c.ShouldBindJSON(&req); err != nil {

@@ -52,7 +52,6 @@ func SetupRouter(application *app.App) (*gin.Engine, error) {
 		api.POST("/auth/logout", authHandler.Logout)
 		// Group
 		api.POST("/groups/create", groupHandler.CreateGroup)
-		api.POST("/groups", groupHandler.CreateGroup)
 		api.POST("/groups/join", groupHandler.JoinGroup)
 		api.GET("/groups/me", groupHandler.GetGroupInfo)
 
