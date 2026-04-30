@@ -1,31 +1,32 @@
 package main
 
 import (
-	"log"
-	"vocalin-backend/internal/config"
+	"vocalin-backend/internal/app"
 	"vocalin-backend/internal/database"
 	"vocalin-backend/internal/models"
+
+	"go.uber.org/zap"
 )
 
 func main() {
-	// Load Config
-	cfg := config.LoadConfig()
+	application, err := app.New()
+	if err != nil {
+		panic(err)
+	}
+	defer func() { _ = application.Close() }()
 
-	// Connect Database
-	database.ConnectDB(cfg)
-
-	log.Println("Starting database cleanup...")
+	application.Logger.Info("开始执行数据库清理")
 
 	// Check and drop 'we_chat_id' column from 'users' table if it exists
-	if database.HasColumn(&models.User{}, "we_chat_id") {
-		log.Println("Found deprecated column 'we_chat_id' in 'users' table. Dropping it...")
-		if err := database.DropColumn(&models.User{}, "we_chat_id"); err != nil {
-			log.Fatalf("Failed to drop column 'we_chat_id': %v", err)
+	if database.HasColumn(application.DB, &models.User{}, "we_chat_id") {
+		application.Logger.Info("发现旧字段 we_chat_id，准备删除")
+		if err := database.DropColumn(application.DB, &models.User{}, "we_chat_id"); err != nil {
+			application.Logger.Fatal("删除旧字段失败", zap.Error(err))
 		}
-		log.Println("Successfully dropped column 'we_chat_id'.")
+		application.Logger.Info("旧字段删除完成")
 	} else {
-		log.Println("Column 'we_chat_id' does not exist in 'users' table.")
+		application.Logger.Info("未发现旧字段 we_chat_id")
 	}
 
-	log.Println("Database cleanup completed.")
+	application.Logger.Info("数据库清理完成")
 }

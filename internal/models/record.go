@@ -32,20 +32,20 @@ type Like struct {
 
 type Note struct {
 	gorm.Model
-	GroupID  uint      `gorm:"index" json:"group_id"`
-	AuthorID uint      `json:"author_id"`
-	Content  string    `json:"content"`
-	Color    string    `json:"color"`
-	Type     string    `json:"type"` // "normal", "burn", "timed"
+	GroupID  uint       `gorm:"index" json:"group_id"`
+	AuthorID uint       `json:"author_id"`
+	Content  string     `json:"content"`
+	Color    string     `json:"color"`
+	Type     string     `json:"type"` // "normal", "burn", "timed"
 	ShowAt   *time.Time `json:"show_at"`
-	IsBurned bool      `json:"is_burned"`
-	Author   User      `gorm:"foreignKey:AuthorID" json:"author"`
+	IsBurned bool       `json:"is_burned"`
+	Author   User       `gorm:"foreignKey:AuthorID" json:"author"`
 }
 
 type Wishlist struct {
 	gorm.Model
-	GroupID     uint      `gorm:"index" json:"group_id"`
-	Content     string    `json:"content"`
-	IsCompleted bool      `json:"is_completed"`
+	GroupID     uint       `gorm:"index" json:"group_id"`
+	Content     string     `json:"content"`
+	IsCompleted bool       `json:"is_completed"`
 	CompletedAt *time.Time `json:"completed_at"`
 }

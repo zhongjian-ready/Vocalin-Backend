@@ -17,7 +17,7 @@ const docTemplate = `{
     "paths": {
         "/auth/login": {
             "post": {
-                "description": "Login with WeChat ID, creates user if not exists",
+                "description": "当前使用昵称和密码登录，后续可扩展手机号验证码登录",
                 "consumes": [
                     "application/json"
                 ],
@@ -27,7 +27,7 @@ const docTemplate = `{
                 "tags": [
                     "Auth"
                 ],
-                "summary": "User Login",
+                "summary": "用户登录",
                 "parameters": [
                     {
                         "description": "Login Request",
@@ -43,7 +43,150 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/vocalin-backend_internal_models.User"
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/vocalin-backend_internal_response.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/internal_handlers.LoginResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/logout": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "撤销当前 refresh token，使其无法再次刷新访问令牌",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Auth"
+                ],
+                "summary": "登出当前会话",
+                "parameters": [
+                    {
+                        "description": "Logout Request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_handlers.LogoutRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/vocalin-backend_internal_response.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/refresh": {
+            "post": {
+                "description": "使用 refresh token 换取新的 access token 和 refresh token",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Auth"
+                ],
+                "summary": "刷新访问令牌",
+                "parameters": [
+                    {
+                        "description": "Refresh Token Request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_handlers.RefreshTokenRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/vocalin-backend_internal_response.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/internal_handlers.RefreshTokenResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/register": {
+            "post": {
+                "description": "使用昵称、手机号和密码创建账号，成功后直接返回 JWT",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Auth"
+                ],
+                "summary": "用户注册",
+                "parameters": [
+                    {
+                        "description": "Register Request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_handlers.RegisterRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/vocalin-backend_internal_response.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/internal_handlers.LoginResponse"
+                                        }
+                                    }
+                                }
+                            ]
                         }
                     }
                 }
@@ -53,10 +196,10 @@ const docTemplate = `{
             "post": {
                 "security": [
                     {
-                        "ApiKeyAuth": []
+                        "BearerAuth": []
                     }
                 ],
-                "description": "Create a new group and join it",
+                "description": "创建一个新的亲密空间，并自动将当前用户加入空间",
                 "consumes": [
                     "application/json"
                 ],
@@ -66,7 +209,7 @@ const docTemplate = `{
                 "tags": [
                     "Group"
                 ],
-                "summary": "Create a new group",
+                "summary": "创建空间",
                 "parameters": [
                     {
                         "description": "Create Group Request",
@@ -82,20 +225,32 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/vocalin-backend_internal_models.Group"
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/vocalin-backend_internal_response.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/internal_handlers.GroupResponse"
+                                        }
+                                    }
+                                }
+                            ]
                         }
                     }
                 }
             }
         },
-        "/groups/join": {
+        "/groups/create": {
             "post": {
                 "security": [
                     {
-                        "ApiKeyAuth": []
+                        "BearerAuth": []
                     }
                 ],
-                "description": "Join a group by invite code",
+                "description": "创建一个新的亲密空间，并自动将当前用户加入空间",
                 "consumes": [
                     "application/json"
                 ],
@@ -105,7 +260,58 @@ const docTemplate = `{
                 "tags": [
                     "Group"
                 ],
-                "summary": "Join a group",
+                "summary": "创建空间",
+                "parameters": [
+                    {
+                        "description": "Create Group Request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_handlers.CreateGroupRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/vocalin-backend_internal_response.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/internal_handlers.GroupResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/groups/join": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "使用邀请码加入已有空间",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Group"
+                ],
+                "summary": "加入空间",
                 "parameters": [
                     {
                         "description": "Join Group Request",
@@ -121,7 +327,19 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/vocalin-backend_internal_models.Group"
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/vocalin-backend_internal_response.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/internal_handlers.GroupResponse"
+                                        }
+                                    }
+                                }
+                            ]
                         }
                     }
                 }
@@ -131,22 +349,34 @@ const docTemplate = `{
             "get": {
                 "security": [
                     {
-                        "ApiKeyAuth": []
+                        "BearerAuth": []
                     }
                 ],
-                "description": "Get info of the group the user belongs to",
+                "description": "获取当前用户所在空间及成员信息",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "Group"
                 ],
-                "summary": "Get current group info",
+                "summary": "获取当前空间信息",
                 "responses": {
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/vocalin-backend_internal_models.Group"
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/vocalin-backend_internal_response.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/internal_handlers.GroupResponse"
+                                        }
+                                    }
+                                }
+                            ]
                         }
                     }
                 }
@@ -156,7 +386,7 @@ const docTemplate = `{
             "get": {
                 "security": [
                     {
-                        "ApiKeyAuth": []
+                        "BearerAuth": []
                     }
                 ],
                 "produces": [
@@ -165,13 +395,24 @@ const docTemplate = `{
                 "tags": [
                     "Home"
                 ],
-                "summary": "Get home dashboard data",
+                "summary": "获取首页概览",
                 "responses": {
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/vocalin-backend_internal_response.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/vocalin-backend_internal_service.DashboardResult"
+                                        }
+                                    }
+                                }
+                            ]
                         }
                     }
                 }
@@ -181,7 +422,7 @@ const docTemplate = `{
             "put": {
                 "security": [
                     {
-                        "ApiKeyAuth": []
+                        "BearerAuth": []
                     }
                 ],
                 "consumes": [
@@ -193,7 +434,7 @@ const docTemplate = `{
                 "tags": [
                     "Home"
                 ],
-                "summary": "Update pinned message",
+                "summary": "更新置顶留言",
                 "parameters": [
                     {
                         "description": "Update Pinned Message Request",
@@ -209,7 +450,19 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/vocalin-backend_internal_models.Group"
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/vocalin-backend_internal_response.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/internal_handlers.HomeGroupResponse"
+                                        }
+                                    }
+                                }
+                            ]
                         }
                     }
                 }
@@ -219,7 +472,7 @@ const docTemplate = `{
             "put": {
                 "security": [
                     {
-                        "ApiKeyAuth": []
+                        "BearerAuth": []
                     }
                 ],
                 "consumes": [
@@ -231,7 +484,7 @@ const docTemplate = `{
                 "tags": [
                     "Home"
                 ],
-                "summary": "Update user status",
+                "summary": "更新实时状态",
                 "parameters": [
                     {
                         "description": "Update Status Request",
@@ -247,7 +500,19 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/vocalin-backend_internal_models.User"
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/vocalin-backend_internal_response.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/internal_handlers.HomeUserResponse"
+                                        }
+                                    }
+                                }
+                            ]
                         }
                     }
                 }
@@ -257,7 +522,7 @@ const docTemplate = `{
             "put": {
                 "security": [
                     {
-                        "ApiKeyAuth": []
+                        "BearerAuth": []
                     }
                 ],
                 "consumes": [
@@ -269,7 +534,7 @@ const docTemplate = `{
                 "tags": [
                     "Home"
                 ],
-                "summary": "Update companion timer",
+                "summary": "更新陪伴计时器",
                 "parameters": [
                     {
                         "description": "Update Timer Request",
@@ -285,7 +550,19 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/vocalin-backend_internal_models.Group"
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/vocalin-backend_internal_response.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/internal_handlers.HomeGroupResponse"
+                                        }
+                                    }
+                                }
+                            ]
                         }
                     }
                 }
@@ -295,7 +572,7 @@ const docTemplate = `{
             "get": {
                 "security": [
                     {
-                        "ApiKeyAuth": []
+                        "BearerAuth": []
                     }
                 ],
                 "produces": [
@@ -304,15 +581,44 @@ const docTemplate = `{
                 "tags": [
                     "Profile"
                 ],
-                "summary": "List anniversaries",
+                "summary": "获取纪念日列表",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "页码，从 1 开始",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "每页条数，最大 100",
+                        "name": "page_size",
+                        "in": "query"
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/vocalin-backend_internal_models.Anniversary"
-                            }
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/vocalin-backend_internal_response.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/internal_handlers.AnniversaryResponse"
+                                            }
+                                        },
+                                        "meta": {
+                                            "$ref": "#/definitions/vocalin-backend_internal_response.PaginationMeta"
+                                        }
+                                    }
+                                }
+                            ]
                         }
                     }
                 }
@@ -320,7 +626,7 @@ const docTemplate = `{
             "post": {
                 "security": [
                     {
-                        "ApiKeyAuth": []
+                        "BearerAuth": []
                     }
                 ],
                 "consumes": [
@@ -332,7 +638,7 @@ const docTemplate = `{
                 "tags": [
                     "Profile"
                 ],
-                "summary": "Add anniversary",
+                "summary": "新增纪念日",
                 "parameters": [
                     {
                         "description": "Create Anniversary Request",
@@ -348,7 +654,19 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/vocalin-backend_internal_models.Anniversary"
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/vocalin-backend_internal_response.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/internal_handlers.AnniversaryResponse"
+                                        }
+                                    }
+                                }
+                            ]
                         }
                     }
                 }
@@ -358,7 +676,7 @@ const docTemplate = `{
             "post": {
                 "security": [
                     {
-                        "ApiKeyAuth": []
+                        "BearerAuth": []
                     }
                 ],
                 "produces": [
@@ -367,15 +685,12 @@ const docTemplate = `{
                 "tags": [
                     "Profile"
                 ],
-                "summary": "Export data to email",
+                "summary": "导出个人数据",
                 "responses": {
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
+                            "$ref": "#/definitions/vocalin-backend_internal_response.APIResponse"
                         }
                     }
                 }
@@ -385,7 +700,7 @@ const docTemplate = `{
             "post": {
                 "security": [
                     {
-                        "ApiKeyAuth": []
+                        "BearerAuth": []
                     }
                 ],
                 "produces": [
@@ -394,15 +709,12 @@ const docTemplate = `{
                 "tags": [
                     "Profile"
                 ],
-                "summary": "Leave current group",
+                "summary": "退出当前空间",
                 "responses": {
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
+                            "$ref": "#/definitions/vocalin-backend_internal_response.APIResponse"
                         }
                     }
                 }
@@ -412,7 +724,7 @@ const docTemplate = `{
             "get": {
                 "security": [
                     {
-                        "ApiKeyAuth": []
+                        "BearerAuth": []
                     }
                 ],
                 "produces": [
@@ -421,15 +733,44 @@ const docTemplate = `{
                 "tags": [
                     "Records"
                 ],
-                "summary": "List sticky notes",
+                "summary": "获取便签列表",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "页码，从 1 开始",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "每页条数，最大 100",
+                        "name": "page_size",
+                        "in": "query"
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/vocalin-backend_internal_models.Note"
-                            }
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/vocalin-backend_internal_response.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/internal_handlers.NoteResponse"
+                                            }
+                                        },
+                                        "meta": {
+                                            "$ref": "#/definitions/vocalin-backend_internal_response.PaginationMeta"
+                                        }
+                                    }
+                                }
+                            ]
                         }
                     }
                 }
@@ -437,7 +778,7 @@ const docTemplate = `{
             "post": {
                 "security": [
                     {
-                        "ApiKeyAuth": []
+                        "BearerAuth": []
                     }
                 ],
                 "consumes": [
@@ -449,7 +790,7 @@ const docTemplate = `{
                 "tags": [
                     "Records"
                 ],
-                "summary": "Create a sticky note",
+                "summary": "创建便签",
                 "parameters": [
                     {
                         "description": "Create Note Request",
@@ -465,7 +806,19 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/vocalin-backend_internal_models.Note"
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/vocalin-backend_internal_response.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/internal_handlers.NoteResponse"
+                                        }
+                                    }
+                                }
+                            ]
                         }
                     }
                 }
@@ -475,7 +828,7 @@ const docTemplate = `{
             "get": {
                 "security": [
                     {
-                        "ApiKeyAuth": []
+                        "BearerAuth": []
                     }
                 ],
                 "produces": [
@@ -484,15 +837,44 @@ const docTemplate = `{
                 "tags": [
                     "Records"
                 ],
-                "summary": "List photos",
+                "summary": "获取照片列表",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "页码，从 1 开始",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "每页条数，最大 100",
+                        "name": "page_size",
+                        "in": "query"
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/vocalin-backend_internal_models.Photo"
-                            }
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/vocalin-backend_internal_response.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/internal_handlers.PhotoResponse"
+                                            }
+                                        },
+                                        "meta": {
+                                            "$ref": "#/definitions/vocalin-backend_internal_response.PaginationMeta"
+                                        }
+                                    }
+                                }
+                            ]
                         }
                     }
                 }
@@ -500,7 +882,7 @@ const docTemplate = `{
             "post": {
                 "security": [
                     {
-                        "ApiKeyAuth": []
+                        "BearerAuth": []
                     }
                 ],
                 "consumes": [
@@ -512,7 +894,7 @@ const docTemplate = `{
                 "tags": [
                     "Records"
                 ],
-                "summary": "Upload a photo",
+                "summary": "上传照片记录",
                 "parameters": [
                     {
                         "description": "Create Photo Request",
@@ -528,7 +910,19 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/vocalin-backend_internal_models.Photo"
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/vocalin-backend_internal_response.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/internal_handlers.PhotoResponse"
+                                        }
+                                    }
+                                }
+                            ]
                         }
                     }
                 }
@@ -538,7 +932,7 @@ const docTemplate = `{
             "get": {
                 "security": [
                     {
-                        "ApiKeyAuth": []
+                        "BearerAuth": []
                     }
                 ],
                 "produces": [
@@ -547,15 +941,44 @@ const docTemplate = `{
                 "tags": [
                     "Records"
                 ],
-                "summary": "List wishlist items",
+                "summary": "获取愿望清单",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "页码，从 1 开始",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "每页条数，最大 100",
+                        "name": "page_size",
+                        "in": "query"
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/vocalin-backend_internal_models.Wishlist"
-                            }
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/vocalin-backend_internal_response.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/internal_handlers.WishlistResponse"
+                                            }
+                                        },
+                                        "meta": {
+                                            "$ref": "#/definitions/vocalin-backend_internal_response.PaginationMeta"
+                                        }
+                                    }
+                                }
+                            ]
                         }
                     }
                 }
@@ -563,7 +986,7 @@ const docTemplate = `{
             "post": {
                 "security": [
                     {
-                        "ApiKeyAuth": []
+                        "BearerAuth": []
                     }
                 ],
                 "consumes": [
@@ -575,7 +998,7 @@ const docTemplate = `{
                 "tags": [
                     "Records"
                 ],
-                "summary": "Add wishlist item",
+                "summary": "新增愿望清单项",
                 "parameters": [
                     {
                         "description": "Create Wishlist Request",
@@ -591,7 +1014,19 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/vocalin-backend_internal_models.Wishlist"
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/vocalin-backend_internal_response.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/internal_handlers.WishlistResponse"
+                                        }
+                                    }
+                                }
+                            ]
                         }
                     }
                 }
@@ -601,7 +1036,7 @@ const docTemplate = `{
             "put": {
                 "security": [
                     {
-                        "ApiKeyAuth": []
+                        "BearerAuth": []
                     }
                 ],
                 "produces": [
@@ -610,7 +1045,7 @@ const docTemplate = `{
                 "tags": [
                     "Records"
                 ],
-                "summary": "Mark wishlist item as completed",
+                "summary": "完成愿望清单项",
                 "parameters": [
                     {
                         "type": "integer",
@@ -624,7 +1059,40 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/vocalin-backend_internal_models.Wishlist"
+                            "$ref": "#/definitions/internal_handlers.WishlistResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/records/wishlist/{id}/incomplete": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Records"
+                ],
+                "summary": "取消完成愿望清单项",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Wishlist Item ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handlers.WishlistResponse"
                         }
                     }
                 }
@@ -644,144 +1112,7 @@ const docTemplate = `{
                 }
             }
         },
-        "internal_handlers.CreateAnniversaryRequest": {
-            "type": "object",
-            "required": [
-                "date",
-                "title"
-            ],
-            "properties": {
-                "date": {
-                    "type": "string"
-                },
-                "title": {
-                    "type": "string"
-                }
-            }
-        },
-        "internal_handlers.CreateGroupRequest": {
-            "type": "object",
-            "required": [
-                "name"
-            ],
-            "properties": {
-                "name": {
-                    "type": "string"
-                }
-            }
-        },
-        "internal_handlers.CreateNoteRequest": {
-            "type": "object",
-            "required": [
-                "content"
-            ],
-            "properties": {
-                "color": {
-                    "type": "string"
-                },
-                "content": {
-                    "type": "string"
-                },
-                "show_at": {
-                    "type": "string"
-                },
-                "type": {
-                    "description": "\"normal\", \"burn\", \"timed\"",
-                    "type": "string"
-                }
-            }
-        },
-        "internal_handlers.CreatePhotoRequest": {
-            "type": "object",
-            "required": [
-                "url"
-            ],
-            "properties": {
-                "description": {
-                    "type": "string"
-                },
-                "url": {
-                    "type": "string"
-                }
-            }
-        },
-        "internal_handlers.CreateWishlistRequest": {
-            "type": "object",
-            "required": [
-                "content"
-            ],
-            "properties": {
-                "content": {
-                    "type": "string"
-                }
-            }
-        },
-        "internal_handlers.JoinGroupRequest": {
-            "type": "object",
-            "required": [
-                "invite_code"
-            ],
-            "properties": {
-                "invite_code": {
-                    "type": "string"
-                }
-            }
-        },
-        "internal_handlers.LoginRequest": {
-            "type": "object",
-            "required": [
-                "wechat_id"
-            ],
-            "properties": {
-                "avatar_url": {
-                    "type": "string"
-                },
-                "nickname": {
-                    "type": "string"
-                },
-                "wechat_id": {
-                    "type": "string"
-                }
-            }
-        },
-        "internal_handlers.UpdatePinnedMessageRequest": {
-            "type": "object",
-            "required": [
-                "content"
-            ],
-            "properties": {
-                "content": {
-                    "type": "string"
-                }
-            }
-        },
-        "internal_handlers.UpdateStatusRequest": {
-            "type": "object",
-            "required": [
-                "status"
-            ],
-            "properties": {
-                "status": {
-                    "type": "string"
-                }
-            }
-        },
-        "internal_handlers.UpdateTimerRequest": {
-            "type": "object",
-            "required": [
-                "start_date",
-                "title"
-            ],
-            "properties": {
-                "start_date": {
-                    "type": "string"
-                },
-                "title": {
-                    "type": "string"
-                }
-            }
-        },
-        "vocalin-backend_internal_models.Anniversary": {
+        "internal_handlers.AnniversaryResponse": {
             "type": "object",
             "properties": {
                 "createdAt": {
@@ -807,6 +1138,487 @@ const docTemplate = `{
                 },
                 "user_id": {
                     "type": "integer"
+                }
+            }
+        },
+        "internal_handlers.CreateAnniversaryRequest": {
+            "type": "object",
+            "required": [
+                "date",
+                "title"
+            ],
+            "properties": {
+                "date": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string",
+                    "maxLength": 100,
+                    "minLength": 2
+                }
+            }
+        },
+        "internal_handlers.CreateGroupRequest": {
+            "type": "object",
+            "required": [
+                "name"
+            ],
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "maxLength": 50,
+                    "minLength": 2
+                }
+            }
+        },
+        "internal_handlers.CreateNoteRequest": {
+            "type": "object",
+            "required": [
+                "content",
+                "type"
+            ],
+            "properties": {
+                "color": {
+                    "type": "string",
+                    "maxLength": 20
+                },
+                "content": {
+                    "type": "string",
+                    "maxLength": 1000
+                },
+                "show_at": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_handlers.CreatePhotoRequest": {
+            "type": "object",
+            "required": [
+                "url"
+            ],
+            "properties": {
+                "description": {
+                    "type": "string",
+                    "maxLength": 500
+                },
+                "url": {
+                    "type": "string",
+                    "maxLength": 1024
+                }
+            }
+        },
+        "internal_handlers.CreateWishlistRequest": {
+            "type": "object",
+            "required": [
+                "content"
+            ],
+            "properties": {
+                "content": {
+                    "type": "string",
+                    "maxLength": 255
+                }
+            }
+        },
+        "internal_handlers.GroupResponse": {
+            "type": "object",
+            "properties": {
+                "createdAt": {
+                    "type": "string"
+                },
+                "creator_id": {
+                    "type": "integer"
+                },
+                "deletedAt": {
+                    "$ref": "#/definitions/gorm.DeletedAt"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "invite_code": {
+                    "type": "string"
+                },
+                "members": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/vocalin-backend_internal_models.User"
+                    }
+                },
+                "name": {
+                    "type": "string"
+                },
+                "pinned_message": {
+                    "type": "string"
+                },
+                "pinned_message_author_id": {
+                    "type": "integer"
+                },
+                "timer_start_date": {
+                    "type": "string"
+                },
+                "timer_title": {
+                    "type": "string"
+                },
+                "updatedAt": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_handlers.HomeGroupResponse": {
+            "type": "object",
+            "properties": {
+                "createdAt": {
+                    "type": "string"
+                },
+                "creator_id": {
+                    "type": "integer"
+                },
+                "deletedAt": {
+                    "$ref": "#/definitions/gorm.DeletedAt"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "invite_code": {
+                    "type": "string"
+                },
+                "members": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/vocalin-backend_internal_models.User"
+                    }
+                },
+                "name": {
+                    "type": "string"
+                },
+                "pinned_message": {
+                    "type": "string"
+                },
+                "pinned_message_author_id": {
+                    "type": "integer"
+                },
+                "timer_start_date": {
+                    "type": "string"
+                },
+                "timer_title": {
+                    "type": "string"
+                },
+                "updatedAt": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_handlers.HomeUserResponse": {
+            "type": "object",
+            "properties": {
+                "avatar_url": {
+                    "type": "string"
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "current_status": {
+                    "type": "string"
+                },
+                "deletedAt": {
+                    "$ref": "#/definitions/gorm.DeletedAt"
+                },
+                "group_id": {
+                    "description": "Nullable if not in a group",
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "nickname": {
+                    "type": "string"
+                },
+                "phone": {
+                    "type": "string"
+                },
+                "status_updated_at": {
+                    "type": "string"
+                },
+                "updatedAt": {
+                    "type": "string"
+                },
+                "wechat_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_handlers.JoinGroupRequest": {
+            "type": "object",
+            "required": [
+                "invite_code"
+            ],
+            "properties": {
+                "invite_code": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_handlers.LoginRequest": {
+            "type": "object",
+            "required": [
+                "nickname",
+                "password"
+            ],
+            "properties": {
+                "nickname": {
+                    "type": "string",
+                    "maxLength": 50,
+                    "minLength": 2
+                },
+                "password": {
+                    "type": "string",
+                    "maxLength": 72,
+                    "minLength": 6
+                }
+            }
+        },
+        "internal_handlers.LoginResponse": {
+            "type": "object",
+            "properties": {
+                "access_token": {
+                    "type": "string"
+                },
+                "access_token_expires_at": {
+                    "type": "string"
+                },
+                "refresh_token": {
+                    "type": "string"
+                },
+                "refresh_token_expires_at": {
+                    "type": "string"
+                },
+                "user": {
+                    "$ref": "#/definitions/vocalin-backend_internal_models.User"
+                }
+            }
+        },
+        "internal_handlers.LogoutRequest": {
+            "type": "object",
+            "required": [
+                "refresh_token"
+            ],
+            "properties": {
+                "refresh_token": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_handlers.NoteResponse": {
+            "type": "object",
+            "properties": {
+                "author": {
+                    "$ref": "#/definitions/vocalin-backend_internal_models.User"
+                },
+                "author_id": {
+                    "type": "integer"
+                },
+                "color": {
+                    "type": "string"
+                },
+                "content": {
+                    "type": "string"
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "deletedAt": {
+                    "$ref": "#/definitions/gorm.DeletedAt"
+                },
+                "group_id": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "is_burned": {
+                    "type": "boolean"
+                },
+                "show_at": {
+                    "type": "string"
+                },
+                "type": {
+                    "description": "\"normal\", \"burn\", \"timed\"",
+                    "type": "string"
+                },
+                "updatedAt": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_handlers.PhotoResponse": {
+            "type": "object",
+            "properties": {
+                "comments": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/vocalin-backend_internal_models.Comment"
+                    }
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "deletedAt": {
+                    "$ref": "#/definitions/gorm.DeletedAt"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "group_id": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "likes": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/vocalin-backend_internal_models.Like"
+                    }
+                },
+                "updatedAt": {
+                    "type": "string"
+                },
+                "uploader_id": {
+                    "type": "integer"
+                },
+                "url": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_handlers.RefreshTokenRequest": {
+            "type": "object",
+            "required": [
+                "refresh_token"
+            ],
+            "properties": {
+                "refresh_token": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_handlers.RefreshTokenResponse": {
+            "type": "object",
+            "properties": {
+                "access_token": {
+                    "type": "string"
+                },
+                "access_token_expires_at": {
+                    "type": "string"
+                },
+                "refresh_token": {
+                    "type": "string"
+                },
+                "refresh_token_expires_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_handlers.RegisterRequest": {
+            "type": "object",
+            "required": [
+                "confirm_password",
+                "nickname",
+                "password",
+                "phone"
+            ],
+            "properties": {
+                "confirm_password": {
+                    "type": "string",
+                    "maxLength": 72,
+                    "minLength": 6
+                },
+                "nickname": {
+                    "type": "string",
+                    "maxLength": 50,
+                    "minLength": 2
+                },
+                "password": {
+                    "type": "string",
+                    "maxLength": 72,
+                    "minLength": 6
+                },
+                "phone": {
+                    "type": "string",
+                    "maxLength": 20,
+                    "minLength": 6
+                }
+            }
+        },
+        "internal_handlers.UpdatePinnedMessageRequest": {
+            "type": "object",
+            "required": [
+                "content"
+            ],
+            "properties": {
+                "content": {
+                    "type": "string",
+                    "maxLength": 500
+                }
+            }
+        },
+        "internal_handlers.UpdateStatusRequest": {
+            "type": "object",
+            "required": [
+                "status"
+            ],
+            "properties": {
+                "status": {
+                    "type": "string",
+                    "maxLength": 120
+                }
+            }
+        },
+        "internal_handlers.UpdateTimerRequest": {
+            "type": "object",
+            "required": [
+                "start_date",
+                "title"
+            ],
+            "properties": {
+                "start_date": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string",
+                    "maxLength": 100,
+                    "minLength": 2
+                }
+            }
+        },
+        "internal_handlers.WishlistResponse": {
+            "type": "object",
+            "properties": {
+                "completed_at": {
+                    "type": "string"
+                },
+                "content": {
+                    "type": "string"
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "deletedAt": {
+                    "$ref": "#/definitions/gorm.DeletedAt"
+                },
+                "group_id": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "is_completed": {
+                    "type": "boolean"
+                },
+                "updatedAt": {
+                    "type": "string"
                 }
             }
         },
@@ -906,89 +1718,6 @@ const docTemplate = `{
                 }
             }
         },
-        "vocalin-backend_internal_models.Note": {
-            "type": "object",
-            "properties": {
-                "author": {
-                    "$ref": "#/definitions/vocalin-backend_internal_models.User"
-                },
-                "author_id": {
-                    "type": "integer"
-                },
-                "color": {
-                    "type": "string"
-                },
-                "content": {
-                    "type": "string"
-                },
-                "createdAt": {
-                    "type": "string"
-                },
-                "deletedAt": {
-                    "$ref": "#/definitions/gorm.DeletedAt"
-                },
-                "group_id": {
-                    "type": "integer"
-                },
-                "id": {
-                    "type": "integer"
-                },
-                "is_burned": {
-                    "type": "boolean"
-                },
-                "show_at": {
-                    "type": "string"
-                },
-                "type": {
-                    "description": "\"normal\", \"burn\", \"timed\"",
-                    "type": "string"
-                },
-                "updatedAt": {
-                    "type": "string"
-                }
-            }
-        },
-        "vocalin-backend_internal_models.Photo": {
-            "type": "object",
-            "properties": {
-                "comments": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/vocalin-backend_internal_models.Comment"
-                    }
-                },
-                "createdAt": {
-                    "type": "string"
-                },
-                "deletedAt": {
-                    "$ref": "#/definitions/gorm.DeletedAt"
-                },
-                "description": {
-                    "type": "string"
-                },
-                "group_id": {
-                    "type": "integer"
-                },
-                "id": {
-                    "type": "integer"
-                },
-                "likes": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/vocalin-backend_internal_models.Like"
-                    }
-                },
-                "updatedAt": {
-                    "type": "string"
-                },
-                "uploader_id": {
-                    "type": "integer"
-                },
-                "url": {
-                    "type": "string"
-                }
-            }
-        },
         "vocalin-backend_internal_models.User": {
             "type": "object",
             "properties": {
@@ -1014,6 +1743,9 @@ const docTemplate = `{
                 "nickname": {
                     "type": "string"
                 },
+                "phone": {
+                    "type": "string"
+                },
                 "status_updated_at": {
                     "type": "string"
                 },
@@ -1025,40 +1757,51 @@ const docTemplate = `{
                 }
             }
         },
-        "vocalin-backend_internal_models.Wishlist": {
+        "vocalin-backend_internal_response.APIResponse": {
             "type": "object",
             "properties": {
-                "completed_at": {
+                "code": {
                     "type": "string"
                 },
-                "content": {
+                "data": {},
+                "message": {
                     "type": "string"
                 },
-                "createdAt": {
-                    "type": "string"
-                },
-                "deletedAt": {
-                    "$ref": "#/definitions/gorm.DeletedAt"
-                },
-                "group_id": {
+                "meta": {}
+            }
+        },
+        "vocalin-backend_internal_response.PaginationMeta": {
+            "type": "object",
+            "properties": {
+                "page": {
                     "type": "integer"
                 },
-                "id": {
+                "page_size": {
                     "type": "integer"
                 },
-                "is_completed": {
-                    "type": "boolean"
+                "total": {
+                    "type": "integer"
                 },
-                "updatedAt": {
-                    "type": "string"
+                "total_pages": {
+                    "type": "integer"
                 }
+            }
+        },
+        "vocalin-backend_internal_service.DashboardResult": {
+            "type": "object",
+            "properties": {
+                "group": {
+                    "$ref": "#/definitions/vocalin-backend_internal_models.Group"
+                },
+                "recent_activity": {}
             }
         }
     },
     "securityDefinitions": {
-        "ApiKeyAuth": {
+        "BearerAuth": {
+            "description": "使用 Bearer \u003ctoken\u003e 传递 JWT 访问令牌",
             "type": "apiKey",
-            "name": "X-User-ID",
+            "name": "Authorization",
             "in": "header"
         }
     }
@@ -1066,12 +1809,12 @@ const docTemplate = `{
 
 // SwaggerInfo holds exported Swagger Info so clients can modify it
 var SwaggerInfo = &swag.Spec{
-	Version:          "1.0",
+	Version:          "2.0",
 	Host:             "localhost:8080",
 	BasePath:         "/api",
 	Schemes:          []string{},
 	Title:            "Vocalin API",
-	Description:      "API for Vocalin (窝聚) App",
+	Description:      "Vocalin（窝聚）后端服务，基于 Gin + GORM + Viper + Zap + Validator + JWT + Swagger 构建",
 	InfoInstanceName: "swagger",
 	SwaggerTemplate:  docTemplate,
 	LeftDelim:        "{{",

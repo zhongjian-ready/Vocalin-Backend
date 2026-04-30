@@ -1,164 +1,127 @@
 package handlers
 
 import (
-	"errors"
-	"net/http"
 	"time"
-	"vocalin-backend/internal/database"
 
 	"github.com/gin-gonic/gin"
-	"gorm.io/gorm"
+
+	"vocalin-backend/internal/models"
+	"vocalin-backend/internal/response"
+	"vocalin-backend/internal/service"
 )
 
+type HomeHandler struct {
+	homeService *service.HomeService
+}
+
+type HomeGroupResponse = models.Group
+type HomeUserResponse = models.User
+
 type UpdateTimerRequest struct {
-	Title     string    `json:"title" binding:"required"`
+	Title     string    `json:"title" binding:"required,min=2,max=100"`
 	StartDate time.Time `json:"start_date" binding:"required"`
 }
 
 type UpdateStatusRequest struct {
-	Status string `json:"status" binding:"required"`
+	Status string `json:"status" binding:"required,max=120"`
 }
 
 type UpdatePinnedMessageRequest struct {
-	Content string `json:"content" binding:"required"`
+	Content string `json:"content" binding:"required,max=500"`
+}
+
+func NewHomeHandler(homeService *service.HomeService) *HomeHandler {
+	return &HomeHandler{homeService: homeService}
 }
 
 // UpdateTimer godoc
-// @Summary Update companion timer
+// @Summary 更新陪伴计时器
 // @Tags Home
 // @Accept json
 // @Produce json
 // @Param request body UpdateTimerRequest true "Update Timer Request"
-// @Security ApiKeyAuth
-// @Success 200 {object} models.Group
+// @Security BearerAuth
+// @Success 200 {object} response.APIResponse{data=HomeGroupResponse}
 // @Router /home/timer [put]
-func UpdateTimer(c *gin.Context) {
+func (h *HomeHandler) UpdateTimer(c *gin.Context) {
 	var req UpdateTimerRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		writeBindError(c, err)
 		return
 	}
 
-	_, groupID, ok := mustCurrentGroupUser(c)
-	if !ok {
-		return
-	}
-
-	group, err := database.Queries.UpdateGroupTimer(groupID, req.Title, req.StartDate)
+	group, err := h.homeService.UpdateTimer(c.Request.Context(), currentUserID(c), req.Title, req.StartDate)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update timer"})
+		writeServiceError(c, err)
 		return
 	}
 
-	c.JSON(http.StatusOK, *group)
+	response.Success(c, "更新计时器成功", group)
 }
 
 // UpdateStatus godoc
-// @Summary Update user status
+// @Summary 更新实时状态
 // @Tags Home
 // @Accept json
 // @Produce json
 // @Param request body UpdateStatusRequest true "Update Status Request"
-// @Security ApiKeyAuth
-// @Success 200 {object} models.User
+// @Security BearerAuth
+// @Success 200 {object} response.APIResponse{data=HomeUserResponse}
 // @Router /home/status [put]
-func UpdateStatus(c *gin.Context) {
+func (h *HomeHandler) UpdateStatus(c *gin.Context) {
 	var req UpdateStatusRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		writeBindError(c, err)
 		return
 	}
 
-	user, ok := mustCurrentUser(c)
-	if !ok {
+	user, err := h.homeService.UpdateStatus(c.Request.Context(), currentUserID(c), req.Status)
+	if err != nil {
+		writeServiceError(c, err)
 		return
 	}
 
-	if err := database.Queries.UpdateUserStatus(user, req.Status, time.Now()); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update status"})
-		return
-	}
-
-	c.JSON(http.StatusOK, *user)
+	response.Success(c, "更新状态成功", user)
 }
 
 // UpdatePinnedMessage godoc
-// @Summary Update pinned message
+// @Summary 更新置顶留言
 // @Tags Home
 // @Accept json
 // @Produce json
 // @Param request body UpdatePinnedMessageRequest true "Update Pinned Message Request"
-// @Security ApiKeyAuth
-// @Success 200 {object} models.Group
+// @Security BearerAuth
+// @Success 200 {object} response.APIResponse{data=HomeGroupResponse}
 // @Router /home/pinned [put]
-func UpdatePinnedMessage(c *gin.Context) {
+func (h *HomeHandler) UpdatePinnedMessage(c *gin.Context) {
 	var req UpdatePinnedMessageRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		writeBindError(c, err)
 		return
 	}
 
-	user, groupID, ok := mustCurrentGroupUser(c)
-	if !ok {
-		return
-	}
-
-	group, err := database.Queries.UpdatePinnedMessage(groupID, user.ID, req.Content)
+	group, err := h.homeService.UpdatePinnedMessage(c.Request.Context(), currentUserID(c), req.Content)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update pinned message"})
+		writeServiceError(c, err)
 		return
 	}
 
-	c.JSON(http.StatusOK, *group)
+	response.Success(c, "更新置顶留言成功", group)
 }
 
 // GetHomeDashboard godoc
-// @Summary Get home dashboard data
+// @Summary 获取首页概览
 // @Tags Home
 // @Produce json
-// @Security ApiKeyAuth
-// @Success 200 {object} map[string]interface{}
+// @Security BearerAuth
+// @Success 200 {object} response.APIResponse{data=service.DashboardResult}
 // @Router /home/dashboard [get]
-func GetHomeDashboard(c *gin.Context) {
-	_, groupID, ok := mustCurrentGroupUser(c)
-	if !ok {
-		return
-	}
-
-	group, err := database.Queries.GetGroupWithMembers(groupID)
+func (h *HomeHandler) GetHomeDashboard(c *gin.Context) {
+	result, err := h.homeService.GetDashboard(c.Request.Context(), currentUserID(c))
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Group not found"})
+		writeServiceError(c, err)
 		return
 	}
 
-	// Get recent activity (latest photo or note)
-	latestPhoto, photoErr := database.Queries.GetLatestPhotoByGroup(group.ID)
-	if photoErr != nil && !errors.Is(photoErr, gorm.ErrRecordNotFound) {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load recent photo"})
-		return
-	}
-
-	latestNote, noteErr := database.Queries.GetLatestNoteByGroup(group.ID)
-	if noteErr != nil && !errors.Is(noteErr, gorm.ErrRecordNotFound) {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load recent note"})
-		return
-	}
-
-	var recentActivity interface{}
-	if latestPhoto != nil && (latestNote == nil || latestPhoto.CreatedAt.After(latestNote.CreatedAt)) {
-		recentActivity = map[string]interface{}{
-			"type": "photo",
-			"data": latestPhoto,
-		}
-	} else if latestNote != nil {
-		recentActivity = map[string]interface{}{
-			"type": "note",
-			"data": latestNote,
-		}
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"group":           group,
-		"recent_activity": recentActivity,
-	})
+	response.Success(c, "获取首页概览成功", result)
 }

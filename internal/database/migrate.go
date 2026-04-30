@@ -1,6 +1,10 @@
 package database
 
-import "vocalin-backend/internal/models"
+import (
+	"vocalin-backend/internal/models"
+
+	"gorm.io/gorm"
+)
 
 func ManagedModels() []any {
 	return []any{
@@ -12,17 +16,18 @@ func ManagedModels() []any {
 		&models.Note{},
 		&models.Wishlist{},
 		&models.Anniversary{},
+		&models.RefreshToken{},
 	}
 }
 
-func AutoMigrate() error {
-	return DB.AutoMigrate(ManagedModels()...)
+func AutoMigrate(db *gorm.DB) error {
+	return db.AutoMigrate(ManagedModels()...)
 }
 
-func HasColumn(value any, column string) bool {
-	return DB.Migrator().HasColumn(value, column)
+func HasColumn(db *gorm.DB, value any, column string) bool {
+	return db.Migrator().HasColumn(value, column)
 }
 
-func DropColumn(value any, column string) error {
-	return DB.Migrator().DropColumn(value, column)
+func DropColumn(db *gorm.DB, value any, column string) error {
+	return db.Migrator().DropColumn(value, column)
 }

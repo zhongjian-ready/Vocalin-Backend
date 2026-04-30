@@ -1,47 +1,59 @@
 package main
 
 import (
-	"log"
+	"context"
+	"errors"
 	"time"
-	"vocalin-backend/internal/config"
+
+	"go.uber.org/zap"
+	"gorm.io/gorm"
+
+	"vocalin-backend/internal/app"
 	"vocalin-backend/internal/database"
 	"vocalin-backend/internal/models"
 )
 
 func main() {
-	// Load Config
-	cfg := config.LoadConfig()
+	application, err := app.New()
+	if err != nil {
+		panic(err)
+	}
+	defer func() { _ = application.Close() }()
 
-	// Connect Database
-	database.ConnectDB(cfg)
+	ctx := context.Background()
+	store := application.Store
 
-	log.Println("Starting data seeding...")
+	if err := database.AutoMigrate(application.DB); err != nil {
+		application.Logger.Fatal("数据库迁移失败", zap.Error(err))
+	}
+
+	application.Logger.Info("开始写入示例数据")
 
 	// 1. Create Users
 	user1 := models.User{
-		WeChatID:        "wx_user_001",
+		WeChatID:        "wechat-romeo",
 		Nickname:        "Romeo",
 		AvatarURL:       "https://api.dicebear.com/7.x/avataaars/svg?seed=Romeo",
 		CurrentStatus:   "Thinking of you",
 		StatusUpdatedAt: time.Now(),
 	}
 	user2 := models.User{
-		WeChatID:        "wx_user_002",
+		WeChatID:        "wechat-juliet",
 		Nickname:        "Juliet",
 		AvatarURL:       "https://api.dicebear.com/7.x/avataaars/svg?seed=Juliet",
 		CurrentStatus:   "Happy",
 		StatusUpdatedAt: time.Now(),
 	}
 
-	if err := database.Queries.EnsureUserByWeChatID(&user1); err != nil {
-		log.Fatalf("Failed to seed user %s: %v", user1.WeChatID, err)
+	if err := ensureUserByWeChatID(ctx, store, &user1); err != nil {
+		application.Logger.Fatal("写入用户失败", zap.Error(err))
 	}
-	log.Printf("Ensured User: %s (ID: %d)", user1.Nickname, user1.ID)
+	application.Logger.Info("用户已准备就绪", zap.String("nickname", user1.Nickname))
 
-	if err := database.Queries.EnsureUserByWeChatID(&user2); err != nil {
-		log.Fatalf("Failed to seed user %s: %v", user2.WeChatID, err)
+	if err := ensureUserByWeChatID(ctx, store, &user2); err != nil {
+		application.Logger.Fatal("写入用户失败", zap.Error(err))
 	}
-	log.Printf("Ensured User: %s (ID: %d)", user2.Nickname, user2.ID)
+	application.Logger.Info("用户已准备就绪", zap.String("nickname", user2.Nickname))
 
 	// 2. Create Group
 	group := models.Group{
@@ -54,21 +66,21 @@ func main() {
 		PinnedMessageAuthorID: user1.ID,
 	}
 
-	if err := database.Queries.EnsureGroupByInviteCode(&group); err != nil {
-		log.Fatalf("Failed to seed group %s: %v", group.InviteCode, err)
+	if err := store.EnsureGroupByInviteCode(ctx, &group); err != nil {
+		application.Logger.Fatal("写入空间失败", zap.Error(err))
 	}
-	log.Printf("Ensured Group: %s (ID: %d)", group.Name, group.ID)
+	application.Logger.Info("空间已准备就绪", zap.String("group", group.Name))
 
 	// 3. Assign Users to Group
 	user1.GroupID = &group.ID
 	user2.GroupID = &group.ID
-	if err := database.Queries.SaveUser(&user1); err != nil {
-		log.Fatalf("Failed to assign user %d to group: %v", user1.ID, err)
+	if err := store.SaveUser(ctx, &user1); err != nil {
+		application.Logger.Fatal("更新用户空间失败", zap.Error(err))
 	}
-	if err := database.Queries.SaveUser(&user2); err != nil {
-		log.Fatalf("Failed to assign user %d to group: %v", user2.ID, err)
+	if err := store.SaveUser(ctx, &user2); err != nil {
+		application.Logger.Fatal("更新用户空间失败", zap.Error(err))
 	}
-	log.Println("Assigned users to group")
+	application.Logger.Info("用户已加入空间")
 
 	// 4. Create Records (Photos)
 	photos := []models.Photo{
@@ -87,11 +99,11 @@ func main() {
 	}
 
 	for _, p := range photos {
-		if err := database.Queries.CreatePhoto(&p); err != nil {
-			log.Fatalf("Failed to seed photo: %v", err)
+		if err := store.CreatePhoto(ctx, &p); err != nil {
+			application.Logger.Fatal("写入照片失败", zap.Error(err))
 		}
 	}
-	log.Printf("Created %d photos", len(photos))
+	application.Logger.Info("照片数据写入完成")
 
 	// 5. Create Notes
 	notes := []models.Note{
@@ -111,11 +123,11 @@ func main() {
 		},
 	}
 	for _, n := range notes {
-		if err := database.Queries.CreateNote(&n); err != nil {
-			log.Fatalf("Failed to seed note: %v", err)
+		if err := store.CreateNote(ctx, &n); err != nil {
+			application.Logger.Fatal("写入便签失败", zap.Error(err))
 		}
 	}
-	log.Printf("Created %d notes", len(notes))
+	application.Logger.Info("便签数据写入完成")
 
 	// 6. Create Wishlist
 	wishes := []models.Wishlist{
@@ -131,11 +143,11 @@ func main() {
 		},
 	}
 	for _, w := range wishes {
-		if err := database.Queries.CreateWishlistItem(&w); err != nil {
-			log.Fatalf("Failed to seed wishlist item: %v", err)
+		if err := store.CreateWishlistItem(ctx, &w); err != nil {
+			application.Logger.Fatal("写入愿望清单失败", zap.Error(err))
 		}
 	}
-	log.Printf("Created %d wishlist items", len(wishes))
+	application.Logger.Info("愿望清单数据写入完成")
 
 	// 7. Create Anniversaries
 	anniversaries := []models.Anniversary{
@@ -153,11 +165,33 @@ func main() {
 		},
 	}
 	for _, a := range anniversaries {
-		if err := database.Queries.CreateAnniversary(&a); err != nil {
-			log.Fatalf("Failed to seed anniversary: %v", err)
+		if err := store.CreateAnniversary(ctx, &a); err != nil {
+			application.Logger.Fatal("写入纪念日失败", zap.Error(err))
 		}
 	}
-	log.Printf("Created %d anniversaries", len(anniversaries))
+	application.Logger.Info("纪念日数据写入完成")
 
-	log.Println("Seeding completed successfully!")
+	application.Logger.Info("示例数据写入完成")
+}
+
+func ensureUserByWeChatID(ctx context.Context, store interface {
+	GetUserByWeChatID(context.Context, string) (*models.User, error)
+	CreateUser(context.Context, *models.User) error
+	SaveUser(context.Context, *models.User) error
+}, user *models.User) error {
+	existing, err := store.GetUserByWeChatID(ctx, user.WeChatID)
+	if err != nil {
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return err
+		}
+		return store.CreateUser(ctx, user)
+	}
+
+	existing.Nickname = user.Nickname
+	existing.AvatarURL = user.AvatarURL
+	existing.CurrentStatus = user.CurrentStatus
+	existing.StatusUpdatedAt = user.StatusUpdatedAt
+	user.Model = existing.Model
+	user.GroupID = existing.GroupID
+	return store.SaveUser(ctx, existing)
 }

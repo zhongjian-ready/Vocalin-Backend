@@ -2,37 +2,40 @@ package middleware
 
 import (
 	"net/http"
-	"strconv"
-	"vocalin-backend/internal/database"
+	"strings"
 
 	"github.com/gin-gonic/gin"
+
+	"vocalin-backend/internal/auth"
+	"vocalin-backend/internal/response"
 )
 
-func AuthMiddleware() gin.HandlerFunc {
+// AuthMiddleware 负责解析 Bearer Token，并将用户身份写入上下文。
+func AuthMiddleware(tokenManager *auth.TokenManager) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		userIDStr := c.GetHeader("X-User-ID")
-		if userIDStr == "" {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized: X-User-ID header missing"})
+		authorization := c.GetHeader("Authorization")
+		if authorization == "" {
+			response.Error(c, http.StatusUnauthorized, "AUTH_UNAUTHORIZED", "缺少 Authorization 请求头")
 			c.Abort()
 			return
 		}
 
-		userID, err := strconv.ParseUint(userIDStr, 10, 64)
+		parts := strings.SplitN(authorization, " ", 2)
+		if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") || strings.TrimSpace(parts[1]) == "" {
+			response.Error(c, http.StatusUnauthorized, "AUTH_UNAUTHORIZED", "Authorization 格式应为 Bearer <token>")
+			c.Abort()
+			return
+		}
+
+		claims, err := tokenManager.ParseAccessToken(strings.TrimSpace(parts[1]))
 		if err != nil {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized: Invalid User ID"})
+			response.Error(c, http.StatusUnauthorized, "AUTH_UNAUTHORIZED", "无效或已过期的访问令牌")
 			c.Abort()
 			return
 		}
 
-		user, err := database.Queries.GetUserByID(uint(userID))
-		if err != nil {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized: User not found"})
-			c.Abort()
-			return
-		}
-
-		c.Set("userID", uint(userID))
-		c.Set("user", *user)
+		c.Set("userID", claims.UserID)
+		c.Set("claims", claims)
 		c.Next()
 	}
 }

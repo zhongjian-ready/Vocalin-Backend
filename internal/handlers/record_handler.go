@@ -1,244 +1,224 @@
 package handlers
 
 import (
-	"net/http"
 	"strconv"
 	"time"
-	"vocalin-backend/internal/database"
 	"vocalin-backend/internal/models"
+	"vocalin-backend/internal/response"
+	"vocalin-backend/internal/service"
 
 	"github.com/gin-gonic/gin"
 )
 
+type RecordHandler struct {
+	recordService *service.RecordService
+}
+
+type PhotoResponse = models.Photo
+type NoteResponse = models.Note
+type WishlistResponse = models.Wishlist
+
 type CreatePhotoRequest struct {
-	URL         string `json:"url" binding:"required"`
-	Description string `json:"description"`
+	URL         string `json:"url" binding:"required,url,max=1024"`
+	Description string `json:"description" binding:"max=500"`
 }
 
 type CreateNoteRequest struct {
-	Content string     `json:"content" binding:"required"`
-	Color   string     `json:"color"`
-	Type    string     `json:"type"` // "normal", "burn", "timed"
+	Content string     `json:"content" binding:"required,max=1000"`
+	Color   string     `json:"color" binding:"max=20"`
+	Type    string     `json:"type" binding:"required,note_type"`
 	ShowAt  *time.Time `json:"show_at"`
 }
 
 type CreateWishlistRequest struct {
-	Content string `json:"content" binding:"required"`
+	Content string `json:"content" binding:"required,max=255"`
+}
+
+func NewRecordHandler(recordService *service.RecordService) *RecordHandler {
+	return &RecordHandler{recordService: recordService}
 }
 
 // CreatePhoto godoc
-// @Summary Upload a photo
+// @Summary 上传照片记录
 // @Tags Records
 // @Accept json
 // @Produce json
 // @Param request body CreatePhotoRequest true "Create Photo Request"
-// @Security ApiKeyAuth
-// @Success 200 {object} models.Photo
+// @Security BearerAuth
+// @Success 200 {object} response.APIResponse{data=PhotoResponse}
 // @Router /records/photos [post]
-func CreatePhoto(c *gin.Context) {
+func (h *RecordHandler) CreatePhoto(c *gin.Context) {
 	var req CreatePhotoRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		writeBindError(c, err)
 		return
 	}
 
-	user, groupID, ok := mustCurrentGroupUser(c)
-	if !ok {
+	photo, err := h.recordService.CreatePhoto(c.Request.Context(), currentUserID(c), req.URL, req.Description)
+	if err != nil {
+		writeServiceError(c, err)
 		return
 	}
 
-	photo := models.Photo{
-		GroupID:     groupID,
-		UploaderID:  user.ID,
-		URL:         req.URL,
-		Description: req.Description,
-	}
-
-	if err := database.Queries.CreatePhoto(&photo); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create photo"})
-		return
-	}
-
-	c.JSON(http.StatusOK, photo)
+	response.Success(c, "创建照片成功", photo)
 }
 
 // GetPhotos godoc
-// @Summary List photos
+// @Summary 获取照片列表
 // @Tags Records
 // @Produce json
-// @Security ApiKeyAuth
-// @Success 200 {array} models.Photo
+// @Security BearerAuth
+// @Param page query int false "页码，从 1 开始"
+// @Param page_size query int false "每页条数，最大 100"
+// @Success 200 {object} response.APIResponse{data=[]PhotoResponse,meta=response.PaginationMeta}
 // @Router /records/photos [get]
-func GetPhotos(c *gin.Context) {
-	_, groupID, ok := mustCurrentGroupUser(c)
-	if !ok {
-		return
-	}
-
-	photos, err := database.Queries.ListPhotosByGroup(groupID)
+func (h *RecordHandler) GetPhotos(c *gin.Context) {
+	page, pageSize := parsePagination(c)
+	photos, err := h.recordService.ListPhotos(c.Request.Context(), currentUserID(c), service.NewPagination(page, pageSize))
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load photos"})
+		writeServiceError(c, err)
 		return
 	}
 
-	c.JSON(http.StatusOK, photos)
+	response.JSON(c, 200, "SUCCESS", "获取照片列表成功", photos.Items, response.NewPaginationMeta(photos.Page, photos.PageSize, photos.Total))
 }
 
 // CreateNote godoc
-// @Summary Create a sticky note
+// @Summary 创建便签
 // @Tags Records
 // @Accept json
 // @Produce json
 // @Param request body CreateNoteRequest true "Create Note Request"
-// @Security ApiKeyAuth
-// @Success 200 {object} models.Note
+// @Security BearerAuth
+// @Success 200 {object} response.APIResponse{data=NoteResponse}
 // @Router /records/notes [post]
-func CreateNote(c *gin.Context) {
+func (h *RecordHandler) CreateNote(c *gin.Context) {
 	var req CreateNoteRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		writeBindError(c, err)
 		return
 	}
 
-	user, groupID, ok := mustCurrentGroupUser(c)
-	if !ok {
+	note, err := h.recordService.CreateNote(c.Request.Context(), currentUserID(c), req.Content, req.Color, req.Type, req.ShowAt)
+	if err != nil {
+		writeServiceError(c, err)
 		return
 	}
 
-	note := models.Note{
-		GroupID:  groupID,
-		AuthorID: user.ID,
-		Content:  req.Content,
-		Color:    req.Color,
-		Type:     req.Type,
-		ShowAt:   req.ShowAt,
-	}
-
-	if err := database.Queries.CreateNote(&note); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create note"})
-		return
-	}
-
-	c.JSON(http.StatusOK, note)
+	response.Success(c, "创建便签成功", note)
 }
 
 // GetNotes godoc
-// @Summary List sticky notes
+// @Summary 获取便签列表
 // @Tags Records
 // @Produce json
-// @Security ApiKeyAuth
-// @Success 200 {array} models.Note
+// @Security BearerAuth
+// @Param page query int false "页码，从 1 开始"
+// @Param page_size query int false "每页条数，最大 100"
+// @Success 200 {object} response.APIResponse{data=[]NoteResponse,meta=response.PaginationMeta}
 // @Router /records/notes [get]
-func GetNotes(c *gin.Context) {
-	_, groupID, ok := mustCurrentGroupUser(c)
-	if !ok {
-		return
-	}
-
-	// Filter out timed notes that shouldn't be shown yet
-	notes, err := database.Queries.ListVisibleNotesByGroup(groupID, time.Now())
+func (h *RecordHandler) GetNotes(c *gin.Context) {
+	page, pageSize := parsePagination(c)
+	notes, err := h.recordService.ListNotes(c.Request.Context(), currentUserID(c), service.NewPagination(page, pageSize))
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load notes"})
+		writeServiceError(c, err)
 		return
 	}
 
-	c.JSON(http.StatusOK, notes)
+	response.JSON(c, 200, "SUCCESS", "获取便签列表成功", notes.Items, response.NewPaginationMeta(notes.Page, notes.PageSize, notes.Total))
 }
 
 // CreateWishlist godoc
-// @Summary Add wishlist item
+// @Summary 新增愿望清单项
 // @Tags Records
 // @Accept json
 // @Produce json
 // @Param request body CreateWishlistRequest true "Create Wishlist Request"
-// @Security ApiKeyAuth
-// @Success 200 {object} models.Wishlist
+// @Security BearerAuth
+// @Success 200 {object} response.APIResponse{data=WishlistResponse}
 // @Router /records/wishlist [post]
-func CreateWishlist(c *gin.Context) {
+func (h *RecordHandler) CreateWishlist(c *gin.Context) {
 	var req CreateWishlistRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		writeBindError(c, err)
 		return
 	}
 
-	_, groupID, ok := mustCurrentGroupUser(c)
-	if !ok {
+	item, err := h.recordService.CreateWishlist(c.Request.Context(), currentUserID(c), req.Content)
+	if err != nil {
+		writeServiceError(c, err)
 		return
 	}
 
-	item := models.Wishlist{
-		GroupID: groupID,
-		Content: req.Content,
-	}
-
-	if err := database.Queries.CreateWishlistItem(&item); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create wishlist item"})
-		return
-	}
-
-	c.JSON(http.StatusOK, item)
+	response.Success(c, "创建愿望清单成功", item)
 }
 
 // GetWishlist godoc
-// @Summary List wishlist items
+// @Summary 获取愿望清单
 // @Tags Records
 // @Produce json
-// @Security ApiKeyAuth
-// @Success 200 {array} models.Wishlist
+// @Security BearerAuth
+// @Param page query int false "页码，从 1 开始"
+// @Param page_size query int false "每页条数，最大 100"
+// @Success 200 {object} response.APIResponse{data=[]WishlistResponse,meta=response.PaginationMeta}
 // @Router /records/wishlist [get]
-func GetWishlist(c *gin.Context) {
-	_, groupID, ok := mustCurrentGroupUser(c)
-	if !ok {
-		return
-	}
-
-	items, err := database.Queries.ListWishlistByGroup(groupID)
+func (h *RecordHandler) GetWishlist(c *gin.Context) {
+	page, pageSize := parsePagination(c)
+	items, err := h.recordService.ListWishlist(c.Request.Context(), currentUserID(c), service.NewPagination(page, pageSize))
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load wishlist"})
+		writeServiceError(c, err)
 		return
 	}
 
-	c.JSON(http.StatusOK, items)
+	response.JSON(c, 200, "SUCCESS", "获取愿望清单成功", items.Items, response.NewPaginationMeta(items.Page, items.PageSize, items.Total))
 }
 
 // CompleteWishlist godoc
-// @Summary Mark wishlist item as completed
+// @Summary 完成愿望清单项
 // @Tags Records
 // @Produce json
 // @Param id path int true "Wishlist Item ID"
-// @Security ApiKeyAuth
-// @Success 200 {object} models.Wishlist
+// @Security BearerAuth
+// @Success 200 {object} WishlistResponse
 // @Router /records/wishlist/{id}/complete [put]
-func CompleteWishlist(c *gin.Context) {
-	_, groupID, ok := mustCurrentGroupUser(c)
-	if !ok {
-		return
-	}
+func (h *RecordHandler) CompleteWishlist(c *gin.Context) {
+	h.updateWishlistCompletion(c, true)
+}
 
+// IncompleteWishlist godoc
+// @Summary 取消完成愿望清单项
+// @Tags Records
+// @Produce json
+// @Param id path int true "Wishlist Item ID"
+// @Security BearerAuth
+// @Success 200 {object} WishlistResponse
+// @Router /records/wishlist/{id}/incomplete [put]
+func (h *RecordHandler) IncompleteWishlist(c *gin.Context) {
+	h.updateWishlistCompletion(c, false)
+}
+
+func (h *RecordHandler) updateWishlistCompletion(c *gin.Context, completed bool) {
 	itemID, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid item id"})
+		response.Error(c, 400, "VALIDATION_ERROR", "无效的愿望清单 ID")
 		return
 	}
 
-	item, err := database.Queries.GetWishlistItemByID(uint(itemID))
+	var item *models.Wishlist
+	if completed {
+		item, err = h.recordService.CompleteWishlist(c.Request.Context(), currentUserID(c), uint(itemID))
+	} else {
+		item, err = h.recordService.IncompleteWishlist(c.Request.Context(), currentUserID(c), uint(itemID))
+	}
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Item not found"})
+		writeServiceError(c, err)
 		return
 	}
 
-	if item.GroupID != groupID {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Item not found"})
-		return
+	message := "完成愿望清单成功"
+	if !completed {
+		message = "取消完成愿望清单成功"
 	}
 
-	now := time.Now()
-	item.IsCompleted = true
-	item.CompletedAt = &now
-	if err := database.Queries.SaveWishlistItem(item); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to complete wishlist item"})
-		return
-	}
-
-	c.JSON(http.StatusOK, *item)
+	response.Success(c, message, item)
 }

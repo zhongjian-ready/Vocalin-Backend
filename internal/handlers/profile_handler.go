@@ -1,106 +1,103 @@
 package handlers
 
 import (
-	"net/http"
 	"time"
-	"vocalin-backend/internal/database"
-	"vocalin-backend/internal/models"
 
 	"github.com/gin-gonic/gin"
+
+	"vocalin-backend/internal/models"
+	"vocalin-backend/internal/response"
+	"vocalin-backend/internal/service"
 )
 
+type ProfileHandler struct {
+	profileService *service.ProfileService
+}
+
+type AnniversaryResponse = models.Anniversary
+
 type CreateAnniversaryRequest struct {
-	Title string    `json:"title" binding:"required"`
+	Title string    `json:"title" binding:"required,min=2,max=100"`
 	Date  time.Time `json:"date" binding:"required"`
 }
 
+func NewProfileHandler(profileService *service.ProfileService) *ProfileHandler {
+	return &ProfileHandler{profileService: profileService}
+}
+
 // CreateAnniversary godoc
-// @Summary Add anniversary
+// @Summary 新增纪念日
 // @Tags Profile
 // @Accept json
 // @Produce json
 // @Param request body CreateAnniversaryRequest true "Create Anniversary Request"
-// @Security ApiKeyAuth
-// @Success 200 {object} models.Anniversary
+// @Security BearerAuth
+// @Success 200 {object} response.APIResponse{data=AnniversaryResponse}
 // @Router /profile/anniversaries [post]
-func CreateAnniversary(c *gin.Context) {
+func (h *ProfileHandler) CreateAnniversary(c *gin.Context) {
 	var req CreateAnniversaryRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		writeBindError(c, err)
 		return
 	}
 
-	user, groupID, ok := mustCurrentGroupUser(c)
-	if !ok {
+	anniversary, err := h.profileService.CreateAnniversary(c.Request.Context(), currentUserID(c), req.Title, req.Date)
+	if err != nil {
+		writeServiceError(c, err)
 		return
 	}
 
-	anniversary := models.Anniversary{
-		UserID:  user.ID,
-		GroupID: groupID,
-		Title:   req.Title,
-		Date:    req.Date,
-	}
-
-	if err := database.Queries.CreateAnniversary(&anniversary); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create anniversary"})
-		return
-	}
-
-	c.JSON(http.StatusOK, anniversary)
+	response.Success(c, "创建纪念日成功", anniversary)
 }
 
 // GetAnniversaries godoc
-// @Summary List anniversaries
+// @Summary 获取纪念日列表
 // @Tags Profile
 // @Produce json
-// @Security ApiKeyAuth
-// @Success 200 {array} models.Anniversary
+// @Security BearerAuth
+// @Param page query int false "页码，从 1 开始"
+// @Param page_size query int false "每页条数，最大 100"
+// @Success 200 {object} response.APIResponse{data=[]AnniversaryResponse,meta=response.PaginationMeta}
 // @Router /profile/anniversaries [get]
-func GetAnniversaries(c *gin.Context) {
-	_, groupID, ok := mustCurrentGroupUser(c)
-	if !ok {
-		return
-	}
-
-	anniversaries, err := database.Queries.ListAnniversariesByGroup(groupID)
+func (h *ProfileHandler) GetAnniversaries(c *gin.Context) {
+	page, pageSize := parsePagination(c)
+	anniversaries, err := h.profileService.ListAnniversaries(c.Request.Context(), currentUserID(c), service.NewPagination(page, pageSize))
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load anniversaries"})
+		writeServiceError(c, err)
 		return
 	}
 
-	c.JSON(http.StatusOK, anniversaries)
+	response.JSON(c, 200, "SUCCESS", "获取纪念日列表成功", anniversaries.Items, response.NewPaginationMeta(anniversaries.Page, anniversaries.PageSize, anniversaries.Total))
 }
 
 // LeaveGroup godoc
-// @Summary Leave current group
+// @Summary 退出当前空间
 // @Tags Profile
 // @Produce json
-// @Security ApiKeyAuth
-// @Success 200 {object} map[string]string
+// @Security BearerAuth
+// @Success 200 {object} response.APIResponse
 // @Router /profile/leave [post]
-func LeaveGroup(c *gin.Context) {
-	user, _, ok := mustCurrentGroupUser(c)
-	if !ok {
+func (h *ProfileHandler) LeaveGroup(c *gin.Context) {
+	if err := h.profileService.LeaveGroup(c.Request.Context(), currentUserID(c)); err != nil {
+		writeServiceError(c, err)
 		return
 	}
 
-	if err := database.Queries.RemoveUserFromGroup(user); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to leave group"})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{"message": "Left group successfully"})
+	response.Success(c, "已成功退出空间", nil)
 }
 
 // ExportData godoc
-// @Summary Export data to email
+// @Summary 导出个人数据
 // @Tags Profile
 // @Produce json
-// @Security ApiKeyAuth
-// @Success 200 {object} map[string]string
+// @Security BearerAuth
+// @Success 200 {object} response.APIResponse
 // @Router /profile/export [post]
-func ExportData(c *gin.Context) {
-	// Mock implementation
-	c.JSON(http.StatusOK, gin.H{"message": "Data export started. You will receive an email shortly."})
+func (h *ProfileHandler) ExportData(c *gin.Context) {
+	message, err := h.profileService.ExportData(c.Request.Context(), currentUserID(c))
+	if err != nil {
+		writeServiceError(c, err)
+		return
+	}
+	response.Success(c, message, nil)
 }

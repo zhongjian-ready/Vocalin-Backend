@@ -8,96 +8,7 @@ definitions:
         description: Valid is true if Time is not NULL
         type: boolean
     type: object
-  internal_handlers.CreateAnniversaryRequest:
-    properties:
-      date:
-        type: string
-      title:
-        type: string
-    required:
-    - date
-    - title
-    type: object
-  internal_handlers.CreateGroupRequest:
-    properties:
-      name:
-        type: string
-    required:
-    - name
-    type: object
-  internal_handlers.CreateNoteRequest:
-    properties:
-      color:
-        type: string
-      content:
-        type: string
-      show_at:
-        type: string
-      type:
-        description: '"normal", "burn", "timed"'
-        type: string
-    required:
-    - content
-    type: object
-  internal_handlers.CreatePhotoRequest:
-    properties:
-      description:
-        type: string
-      url:
-        type: string
-    required:
-    - url
-    type: object
-  internal_handlers.CreateWishlistRequest:
-    properties:
-      content:
-        type: string
-    required:
-    - content
-    type: object
-  internal_handlers.JoinGroupRequest:
-    properties:
-      invite_code:
-        type: string
-    required:
-    - invite_code
-    type: object
-  internal_handlers.LoginRequest:
-    properties:
-      avatar_url:
-        type: string
-      nickname:
-        type: string
-      wechat_id:
-        type: string
-    required:
-    - wechat_id
-    type: object
-  internal_handlers.UpdatePinnedMessageRequest:
-    properties:
-      content:
-        type: string
-    required:
-    - content
-    type: object
-  internal_handlers.UpdateStatusRequest:
-    properties:
-      status:
-        type: string
-    required:
-    - status
-    type: object
-  internal_handlers.UpdateTimerRequest:
-    properties:
-      start_date:
-        type: string
-      title:
-        type: string
-    required:
-    - start_date
-    - title
-    type: object
-  vocalin-backend_internal_models.Anniversary:
+  internal_handlers.AnniversaryResponse:
     properties:
       createdAt:
         type: string
@@ -115,6 +26,331 @@ definitions:
         type: string
       user_id:
         type: integer
+    type: object
+  internal_handlers.CreateAnniversaryRequest:
+    properties:
+      date:
+        type: string
+      title:
+        maxLength: 100
+        minLength: 2
+        type: string
+    required:
+    - date
+    - title
+    type: object
+  internal_handlers.CreateGroupRequest:
+    properties:
+      name:
+        maxLength: 50
+        minLength: 2
+        type: string
+    required:
+    - name
+    type: object
+  internal_handlers.CreateNoteRequest:
+    properties:
+      color:
+        maxLength: 20
+        type: string
+      content:
+        maxLength: 1000
+        type: string
+      show_at:
+        type: string
+      type:
+        type: string
+    required:
+    - content
+    - type
+    type: object
+  internal_handlers.CreatePhotoRequest:
+    properties:
+      description:
+        maxLength: 500
+        type: string
+      url:
+        maxLength: 1024
+        type: string
+    required:
+    - url
+    type: object
+  internal_handlers.CreateWishlistRequest:
+    properties:
+      content:
+        maxLength: 255
+        type: string
+    required:
+    - content
+    type: object
+  internal_handlers.GroupResponse:
+    properties:
+      createdAt:
+        type: string
+      creator_id:
+        type: integer
+      deletedAt:
+        $ref: '#/definitions/gorm.DeletedAt'
+      id:
+        type: integer
+      invite_code:
+        type: string
+      members:
+        items:
+          $ref: '#/definitions/vocalin-backend_internal_models.User'
+        type: array
+      name:
+        type: string
+      pinned_message:
+        type: string
+      pinned_message_author_id:
+        type: integer
+      timer_start_date:
+        type: string
+      timer_title:
+        type: string
+      updatedAt:
+        type: string
+    type: object
+  internal_handlers.HomeGroupResponse:
+    properties:
+      createdAt:
+        type: string
+      creator_id:
+        type: integer
+      deletedAt:
+        $ref: '#/definitions/gorm.DeletedAt'
+      id:
+        type: integer
+      invite_code:
+        type: string
+      members:
+        items:
+          $ref: '#/definitions/vocalin-backend_internal_models.User'
+        type: array
+      name:
+        type: string
+      pinned_message:
+        type: string
+      pinned_message_author_id:
+        type: integer
+      timer_start_date:
+        type: string
+      timer_title:
+        type: string
+      updatedAt:
+        type: string
+    type: object
+  internal_handlers.HomeUserResponse:
+    properties:
+      avatar_url:
+        type: string
+      createdAt:
+        type: string
+      current_status:
+        type: string
+      deletedAt:
+        $ref: '#/definitions/gorm.DeletedAt'
+      group_id:
+        description: Nullable if not in a group
+        type: integer
+      id:
+        type: integer
+      nickname:
+        type: string
+      phone:
+        type: string
+      status_updated_at:
+        type: string
+      updatedAt:
+        type: string
+      wechat_id:
+        type: string
+    type: object
+  internal_handlers.JoinGroupRequest:
+    properties:
+      invite_code:
+        type: string
+    required:
+    - invite_code
+    type: object
+  internal_handlers.LoginRequest:
+    properties:
+      nickname:
+        maxLength: 50
+        minLength: 2
+        type: string
+      password:
+        maxLength: 72
+        minLength: 6
+        type: string
+    required:
+    - nickname
+    - password
+    type: object
+  internal_handlers.LoginResponse:
+    properties:
+      access_token:
+        type: string
+      access_token_expires_at:
+        type: string
+      refresh_token:
+        type: string
+      refresh_token_expires_at:
+        type: string
+      user:
+        $ref: '#/definitions/vocalin-backend_internal_models.User'
+    type: object
+  internal_handlers.LogoutRequest:
+    properties:
+      refresh_token:
+        type: string
+    required:
+    - refresh_token
+    type: object
+  internal_handlers.NoteResponse:
+    properties:
+      author:
+        $ref: '#/definitions/vocalin-backend_internal_models.User'
+      author_id:
+        type: integer
+      color:
+        type: string
+      content:
+        type: string
+      createdAt:
+        type: string
+      deletedAt:
+        $ref: '#/definitions/gorm.DeletedAt'
+      group_id:
+        type: integer
+      id:
+        type: integer
+      is_burned:
+        type: boolean
+      show_at:
+        type: string
+      type:
+        description: '"normal", "burn", "timed"'
+        type: string
+      updatedAt:
+        type: string
+    type: object
+  internal_handlers.PhotoResponse:
+    properties:
+      comments:
+        items:
+          $ref: '#/definitions/vocalin-backend_internal_models.Comment'
+        type: array
+      createdAt:
+        type: string
+      deletedAt:
+        $ref: '#/definitions/gorm.DeletedAt'
+      description:
+        type: string
+      group_id:
+        type: integer
+      id:
+        type: integer
+      likes:
+        items:
+          $ref: '#/definitions/vocalin-backend_internal_models.Like'
+        type: array
+      updatedAt:
+        type: string
+      uploader_id:
+        type: integer
+      url:
+        type: string
+    type: object
+  internal_handlers.RefreshTokenRequest:
+    properties:
+      refresh_token:
+        type: string
+    required:
+    - refresh_token
+    type: object
+  internal_handlers.RefreshTokenResponse:
+    properties:
+      access_token:
+        type: string
+      access_token_expires_at:
+        type: string
+      refresh_token:
+        type: string
+      refresh_token_expires_at:
+        type: string
+    type: object
+  internal_handlers.RegisterRequest:
+    properties:
+      confirm_password:
+        maxLength: 72
+        minLength: 6
+        type: string
+      nickname:
+        maxLength: 50
+        minLength: 2
+        type: string
+      password:
+        maxLength: 72
+        minLength: 6
+        type: string
+      phone:
+        maxLength: 20
+        minLength: 6
+        type: string
+    required:
+    - confirm_password
+    - nickname
+    - password
+    - phone
+    type: object
+  internal_handlers.UpdatePinnedMessageRequest:
+    properties:
+      content:
+        maxLength: 500
+        type: string
+    required:
+    - content
+    type: object
+  internal_handlers.UpdateStatusRequest:
+    properties:
+      status:
+        maxLength: 120
+        type: string
+    required:
+    - status
+    type: object
+  internal_handlers.UpdateTimerRequest:
+    properties:
+      start_date:
+        type: string
+      title:
+        maxLength: 100
+        minLength: 2
+        type: string
+    required:
+    - start_date
+    - title
+    type: object
+  internal_handlers.WishlistResponse:
+    properties:
+      completed_at:
+        type: string
+      content:
+        type: string
+      createdAt:
+        type: string
+      deletedAt:
+        $ref: '#/definitions/gorm.DeletedAt'
+      group_id:
+        type: integer
+      id:
+        type: integer
+      is_completed:
+        type: boolean
+      updatedAt:
+        type: string
     type: object
   vocalin-backend_internal_models.Comment:
     properties:
@@ -179,61 +415,6 @@ definitions:
       user_id:
         type: integer
     type: object
-  vocalin-backend_internal_models.Note:
-    properties:
-      author:
-        $ref: '#/definitions/vocalin-backend_internal_models.User'
-      author_id:
-        type: integer
-      color:
-        type: string
-      content:
-        type: string
-      createdAt:
-        type: string
-      deletedAt:
-        $ref: '#/definitions/gorm.DeletedAt'
-      group_id:
-        type: integer
-      id:
-        type: integer
-      is_burned:
-        type: boolean
-      show_at:
-        type: string
-      type:
-        description: '"normal", "burn", "timed"'
-        type: string
-      updatedAt:
-        type: string
-    type: object
-  vocalin-backend_internal_models.Photo:
-    properties:
-      comments:
-        items:
-          $ref: '#/definitions/vocalin-backend_internal_models.Comment'
-        type: array
-      createdAt:
-        type: string
-      deletedAt:
-        $ref: '#/definitions/gorm.DeletedAt'
-      description:
-        type: string
-      group_id:
-        type: integer
-      id:
-        type: integer
-      likes:
-        items:
-          $ref: '#/definitions/vocalin-backend_internal_models.Like'
-        type: array
-      updatedAt:
-        type: string
-      uploader_id:
-        type: integer
-      url:
-        type: string
-    type: object
   vocalin-backend_internal_models.User:
     properties:
       avatar_url:
@@ -251,6 +432,8 @@ definitions:
         type: integer
       nickname:
         type: string
+      phone:
+        type: string
       status_updated_at:
         type: string
       updatedAt:
@@ -258,37 +441,45 @@ definitions:
       wechat_id:
         type: string
     type: object
-  vocalin-backend_internal_models.Wishlist:
+  vocalin-backend_internal_response.APIResponse:
     properties:
-      completed_at:
+      code:
         type: string
-      content:
+      data: {}
+      message:
         type: string
-      createdAt:
-        type: string
-      deletedAt:
-        $ref: '#/definitions/gorm.DeletedAt'
-      group_id:
+      meta: {}
+    type: object
+  vocalin-backend_internal_response.PaginationMeta:
+    properties:
+      page:
         type: integer
-      id:
+      page_size:
         type: integer
-      is_completed:
-        type: boolean
-      updatedAt:
-        type: string
+      total:
+        type: integer
+      total_pages:
+        type: integer
+    type: object
+  vocalin-backend_internal_service.DashboardResult:
+    properties:
+      group:
+        $ref: '#/definitions/vocalin-backend_internal_models.Group'
+      recent_activity: {}
     type: object
 host: localhost:8080
 info:
   contact: {}
-  description: API for Vocalin (窝聚) App
+  description: Vocalin（窝聚）后端服务，基于 Gin + GORM + Viper + Zap + Validator + JWT + Swagger
+    构建
   title: Vocalin API
-  version: "1.0"
+  version: "2.0"
 paths:
   /auth/login:
     post:
       consumes:
       - application/json
-      description: Login with WeChat ID, creates user if not exists
+      description: 当前使用昵称和密码登录，后续可扩展手机号验证码登录
       parameters:
       - description: Login Request
         in: body
@@ -302,15 +493,98 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/vocalin-backend_internal_models.User'
-      summary: User Login
+            allOf:
+            - $ref: '#/definitions/vocalin-backend_internal_response.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/internal_handlers.LoginResponse'
+              type: object
+      summary: 用户登录
+      tags:
+      - Auth
+  /auth/logout:
+    post:
+      consumes:
+      - application/json
+      description: 撤销当前 refresh token，使其无法再次刷新访问令牌
+      parameters:
+      - description: Logout Request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_handlers.LogoutRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/vocalin-backend_internal_response.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: 登出当前会话
+      tags:
+      - Auth
+  /auth/refresh:
+    post:
+      consumes:
+      - application/json
+      description: 使用 refresh token 换取新的 access token 和 refresh token
+      parameters:
+      - description: Refresh Token Request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_handlers.RefreshTokenRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/vocalin-backend_internal_response.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/internal_handlers.RefreshTokenResponse'
+              type: object
+      summary: 刷新访问令牌
+      tags:
+      - Auth
+  /auth/register:
+    post:
+      consumes:
+      - application/json
+      description: 使用昵称、手机号和密码创建账号，成功后直接返回 JWT
+      parameters:
+      - description: Register Request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_handlers.RegisterRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/vocalin-backend_internal_response.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/internal_handlers.LoginResponse'
+              type: object
+      summary: 用户注册
       tags:
       - Auth
   /groups:
     post:
       consumes:
       - application/json
-      description: Create a new group and join it
+      description: 创建一个新的亲密空间，并自动将当前用户加入空间
       parameters:
       - description: Create Group Request
         in: body
@@ -324,17 +598,51 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/vocalin-backend_internal_models.Group'
+            allOf:
+            - $ref: '#/definitions/vocalin-backend_internal_response.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/internal_handlers.GroupResponse'
+              type: object
       security:
-      - ApiKeyAuth: []
-      summary: Create a new group
+      - BearerAuth: []
+      summary: 创建空间
+      tags:
+      - Group
+  /groups/create:
+    post:
+      consumes:
+      - application/json
+      description: 创建一个新的亲密空间，并自动将当前用户加入空间
+      parameters:
+      - description: Create Group Request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_handlers.CreateGroupRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/vocalin-backend_internal_response.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/internal_handlers.GroupResponse'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: 创建空间
       tags:
       - Group
   /groups/join:
     post:
       consumes:
       - application/json
-      description: Join a group by invite code
+      description: 使用邀请码加入已有空间
       parameters:
       - description: Join Group Request
         in: body
@@ -348,25 +656,35 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/vocalin-backend_internal_models.Group'
+            allOf:
+            - $ref: '#/definitions/vocalin-backend_internal_response.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/internal_handlers.GroupResponse'
+              type: object
       security:
-      - ApiKeyAuth: []
-      summary: Join a group
+      - BearerAuth: []
+      summary: 加入空间
       tags:
       - Group
   /groups/me:
     get:
-      description: Get info of the group the user belongs to
+      description: 获取当前用户所在空间及成员信息
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/vocalin-backend_internal_models.Group'
+            allOf:
+            - $ref: '#/definitions/vocalin-backend_internal_response.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/internal_handlers.GroupResponse'
+              type: object
       security:
-      - ApiKeyAuth: []
-      summary: Get current group info
+      - BearerAuth: []
+      summary: 获取当前空间信息
       tags:
       - Group
   /home/dashboard:
@@ -377,11 +695,15 @@ paths:
         "200":
           description: OK
           schema:
-            additionalProperties: true
-            type: object
+            allOf:
+            - $ref: '#/definitions/vocalin-backend_internal_response.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/vocalin-backend_internal_service.DashboardResult'
+              type: object
       security:
-      - ApiKeyAuth: []
-      summary: Get home dashboard data
+      - BearerAuth: []
+      summary: 获取首页概览
       tags:
       - Home
   /home/pinned:
@@ -401,10 +723,15 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/vocalin-backend_internal_models.Group'
+            allOf:
+            - $ref: '#/definitions/vocalin-backend_internal_response.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/internal_handlers.HomeGroupResponse'
+              type: object
       security:
-      - ApiKeyAuth: []
-      summary: Update pinned message
+      - BearerAuth: []
+      summary: 更新置顶留言
       tags:
       - Home
   /home/status:
@@ -424,10 +751,15 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/vocalin-backend_internal_models.User'
+            allOf:
+            - $ref: '#/definitions/vocalin-backend_internal_response.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/internal_handlers.HomeUserResponse'
+              type: object
       security:
-      - ApiKeyAuth: []
-      summary: Update user status
+      - BearerAuth: []
+      summary: 更新实时状态
       tags:
       - Home
   /home/timer:
@@ -447,26 +779,47 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/vocalin-backend_internal_models.Group'
+            allOf:
+            - $ref: '#/definitions/vocalin-backend_internal_response.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/internal_handlers.HomeGroupResponse'
+              type: object
       security:
-      - ApiKeyAuth: []
-      summary: Update companion timer
+      - BearerAuth: []
+      summary: 更新陪伴计时器
       tags:
       - Home
   /profile/anniversaries:
     get:
+      parameters:
+      - description: 页码，从 1 开始
+        in: query
+        name: page
+        type: integer
+      - description: 每页条数，最大 100
+        in: query
+        name: page_size
+        type: integer
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            items:
-              $ref: '#/definitions/vocalin-backend_internal_models.Anniversary'
-            type: array
+            allOf:
+            - $ref: '#/definitions/vocalin-backend_internal_response.APIResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/internal_handlers.AnniversaryResponse'
+                  type: array
+                meta:
+                  $ref: '#/definitions/vocalin-backend_internal_response.PaginationMeta'
+              type: object
       security:
-      - ApiKeyAuth: []
-      summary: List anniversaries
+      - BearerAuth: []
+      summary: 获取纪念日列表
       tags:
       - Profile
     post:
@@ -485,10 +838,15 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/vocalin-backend_internal_models.Anniversary'
+            allOf:
+            - $ref: '#/definitions/vocalin-backend_internal_response.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/internal_handlers.AnniversaryResponse'
+              type: object
       security:
-      - ApiKeyAuth: []
-      summary: Add anniversary
+      - BearerAuth: []
+      summary: 新增纪念日
       tags:
       - Profile
   /profile/export:
@@ -499,12 +857,10 @@ paths:
         "200":
           description: OK
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/vocalin-backend_internal_response.APIResponse'
       security:
-      - ApiKeyAuth: []
-      summary: Export data to email
+      - BearerAuth: []
+      summary: 导出个人数据
       tags:
       - Profile
   /profile/leave:
@@ -515,28 +871,42 @@ paths:
         "200":
           description: OK
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/vocalin-backend_internal_response.APIResponse'
       security:
-      - ApiKeyAuth: []
-      summary: Leave current group
+      - BearerAuth: []
+      summary: 退出当前空间
       tags:
       - Profile
   /records/notes:
     get:
+      parameters:
+      - description: 页码，从 1 开始
+        in: query
+        name: page
+        type: integer
+      - description: 每页条数，最大 100
+        in: query
+        name: page_size
+        type: integer
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            items:
-              $ref: '#/definitions/vocalin-backend_internal_models.Note'
-            type: array
+            allOf:
+            - $ref: '#/definitions/vocalin-backend_internal_response.APIResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/internal_handlers.NoteResponse'
+                  type: array
+                meta:
+                  $ref: '#/definitions/vocalin-backend_internal_response.PaginationMeta'
+              type: object
       security:
-      - ApiKeyAuth: []
-      summary: List sticky notes
+      - BearerAuth: []
+      summary: 获取便签列表
       tags:
       - Records
     post:
@@ -555,26 +925,47 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/vocalin-backend_internal_models.Note'
+            allOf:
+            - $ref: '#/definitions/vocalin-backend_internal_response.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/internal_handlers.NoteResponse'
+              type: object
       security:
-      - ApiKeyAuth: []
-      summary: Create a sticky note
+      - BearerAuth: []
+      summary: 创建便签
       tags:
       - Records
   /records/photos:
     get:
+      parameters:
+      - description: 页码，从 1 开始
+        in: query
+        name: page
+        type: integer
+      - description: 每页条数，最大 100
+        in: query
+        name: page_size
+        type: integer
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            items:
-              $ref: '#/definitions/vocalin-backend_internal_models.Photo'
-            type: array
+            allOf:
+            - $ref: '#/definitions/vocalin-backend_internal_response.APIResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/internal_handlers.PhotoResponse'
+                  type: array
+                meta:
+                  $ref: '#/definitions/vocalin-backend_internal_response.PaginationMeta'
+              type: object
       security:
-      - ApiKeyAuth: []
-      summary: List photos
+      - BearerAuth: []
+      summary: 获取照片列表
       tags:
       - Records
     post:
@@ -593,26 +984,47 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/vocalin-backend_internal_models.Photo'
+            allOf:
+            - $ref: '#/definitions/vocalin-backend_internal_response.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/internal_handlers.PhotoResponse'
+              type: object
       security:
-      - ApiKeyAuth: []
-      summary: Upload a photo
+      - BearerAuth: []
+      summary: 上传照片记录
       tags:
       - Records
   /records/wishlist:
     get:
+      parameters:
+      - description: 页码，从 1 开始
+        in: query
+        name: page
+        type: integer
+      - description: 每页条数，最大 100
+        in: query
+        name: page_size
+        type: integer
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            items:
-              $ref: '#/definitions/vocalin-backend_internal_models.Wishlist'
-            type: array
+            allOf:
+            - $ref: '#/definitions/vocalin-backend_internal_response.APIResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/internal_handlers.WishlistResponse'
+                  type: array
+                meta:
+                  $ref: '#/definitions/vocalin-backend_internal_response.PaginationMeta'
+              type: object
       security:
-      - ApiKeyAuth: []
-      summary: List wishlist items
+      - BearerAuth: []
+      summary: 获取愿望清单
       tags:
       - Records
     post:
@@ -631,10 +1043,15 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/vocalin-backend_internal_models.Wishlist'
+            allOf:
+            - $ref: '#/definitions/vocalin-backend_internal_response.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/internal_handlers.WishlistResponse'
+              type: object
       security:
-      - ApiKeyAuth: []
-      summary: Add wishlist item
+      - BearerAuth: []
+      summary: 新增愿望清单项
       tags:
       - Records
   /records/wishlist/{id}/complete:
@@ -651,15 +1068,36 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/vocalin-backend_internal_models.Wishlist'
+            $ref: '#/definitions/internal_handlers.WishlistResponse'
       security:
-      - ApiKeyAuth: []
-      summary: Mark wishlist item as completed
+      - BearerAuth: []
+      summary: 完成愿望清单项
+      tags:
+      - Records
+  /records/wishlist/{id}/incomplete:
+    put:
+      parameters:
+      - description: Wishlist Item ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_handlers.WishlistResponse'
+      security:
+      - BearerAuth: []
+      summary: 取消完成愿望清单项
       tags:
       - Records
 securityDefinitions:
-  ApiKeyAuth:
+  BearerAuth:
+    description: 使用 Bearer <token> 传递 JWT 访问令牌
     in: header
-    name: X-User-ID
+    name: Authorization
     type: apiKey
 swagger: "2.0"

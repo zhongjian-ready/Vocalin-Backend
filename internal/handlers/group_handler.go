@@ -1,125 +1,98 @@
 package handlers
 
 import (
-	"net/http"
-	"vocalin-backend/internal/database"
 	"vocalin-backend/internal/models"
-	"vocalin-backend/pkg/utils"
+	"vocalin-backend/internal/response"
+	"vocalin-backend/internal/service"
 
 	"github.com/gin-gonic/gin"
 )
 
+type GroupHandler struct {
+	groupService *service.GroupService
+}
+
+type GroupResponse = models.Group
+
 type CreateGroupRequest struct {
-	Name string `json:"name" binding:"required"`
+	Name string `json:"name" binding:"required,min=2,max=50"`
 }
 
 type JoinGroupRequest struct {
-	InviteCode string `json:"invite_code" binding:"required"`
+	InviteCode string `json:"invite_code" binding:"required,invite_code"`
+}
+
+func NewGroupHandler(groupService *service.GroupService) *GroupHandler {
+	return &GroupHandler{groupService: groupService}
 }
 
 // CreateGroup godoc
-// @Summary Create a new group
-// @Description Create a new group and join it
+// @Summary 创建空间
+// @Description 创建一个新的亲密空间，并自动将当前用户加入空间
 // @Tags Group
 // @Accept json
 // @Produce json
 // @Param request body CreateGroupRequest true "Create Group Request"
-// @Security ApiKeyAuth
-// @Success 200 {object} models.Group
+// @Security BearerAuth
+// @Success 200 {object} response.APIResponse{data=GroupResponse}
+// @Router /groups/create [post]
 // @Router /groups [post]
-func CreateGroup(c *gin.Context) {
+func (h *GroupHandler) CreateGroup(c *gin.Context) {
 	var req CreateGroupRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		writeBindError(c, err)
 		return
 	}
 
-	user, ok := mustCurrentUser(c)
-	if !ok {
+	group, err := h.groupService.CreateGroup(c.Request.Context(), currentUserID(c), req.Name)
+	if err != nil {
+		writeServiceError(c, err)
 		return
 	}
 
-	// Check if user is already in a group
-	if user.GroupID != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "User already in a group"})
-		return
-	}
-
-	inviteCode := utils.GenerateInviteCode(6)
-	group := models.Group{
-		Name:       req.Name,
-		InviteCode: inviteCode,
-		CreatorID:  user.ID,
-	}
-
-	if err := database.Queries.CreateGroupWithCreator(user, &group); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create group"})
-		return
-	}
-
-	c.JSON(http.StatusOK, group)
+	response.Success(c, "空间创建成功", group)
 }
 
 // JoinGroup godoc
-// @Summary Join a group
-// @Description Join a group by invite code
+// @Summary 加入空间
+// @Description 使用邀请码加入已有空间
 // @Tags Group
 // @Accept json
 // @Produce json
 // @Param request body JoinGroupRequest true "Join Group Request"
-// @Security ApiKeyAuth
-// @Success 200 {object} models.Group
+// @Security BearerAuth
+// @Success 200 {object} response.APIResponse{data=GroupResponse}
 // @Router /groups/join [post]
-func JoinGroup(c *gin.Context) {
+func (h *GroupHandler) JoinGroup(c *gin.Context) {
 	var req JoinGroupRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		writeBindError(c, err)
 		return
 	}
 
-	user, ok := mustCurrentUser(c)
-	if !ok {
-		return
-	}
-
-	if user.GroupID != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "User already in a group"})
-		return
-	}
-
-	group, err := database.Queries.GetGroupByInviteCode(req.InviteCode)
+	group, err := h.groupService.JoinGroup(c.Request.Context(), currentUserID(c), req.InviteCode)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Invalid invite code"})
+		writeServiceError(c, err)
 		return
 	}
 
-	if err := database.Queries.AddUserToGroup(user, group.ID); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to join group"})
-		return
-	}
-
-	c.JSON(http.StatusOK, *group)
+	response.Success(c, "加入空间成功", group)
 }
 
 // GetGroupInfo godoc
-// @Summary Get current group info
-// @Description Get info of the group the user belongs to
+// @Summary 获取当前空间信息
+// @Description 获取当前用户所在空间及成员信息
 // @Tags Group
 // @Produce json
-// @Security ApiKeyAuth
-// @Success 200 {object} models.Group
+// @Security BearerAuth
+// @Success 200 {object} response.APIResponse{data=GroupResponse}
 // @Router /groups/me [get]
-func GetGroupInfo(c *gin.Context) {
-	_, groupID, ok := mustCurrentGroupUser(c)
-	if !ok {
-		return
-	}
-
-	group, err := database.Queries.GetGroupWithMembers(groupID)
+func (h *GroupHandler) GetGroupInfo(c *gin.Context) {
+	group, err := h.groupService.GetGroupInfo(c.Request.Context(), currentUserID(c))
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Group not found"})
+		writeServiceError(c, err)
 		return
 	}
 
-	c.JSON(http.StatusOK, *group)
+	response.Success(c, "获取空间成功", group)
 }
