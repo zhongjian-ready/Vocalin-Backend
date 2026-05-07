@@ -13,18 +13,13 @@ func TestRecordServiceListPhotosWithPagination(t *testing.T) {
 	svc := NewRecordService(store, newTestLogger())
 	ctx := context.Background()
 
-	groupID := uint(1)
-	user := &models.User{WeChatID: "wechat-photo-user", Nickname: "photo-user", GroupID: &groupID, StatusUpdatedAt: time.Now()}
+	user := &models.User{WeChatID: "wechat-photo-user", Nickname: "photo-user", StatusUpdatedAt: time.Now()}
 	if err := store.CreateUser(ctx, user); err != nil {
 		t.Fatalf("create user: %v", err)
 	}
 	group := &models.Group{Name: "g1", InviteCode: "PHOTO1", CreatorID: user.ID}
-	if err := store.CreateGroup(ctx, group); err != nil {
-		t.Fatalf("create group: %v", err)
-	}
-	user.GroupID = &group.ID
-	if err := store.SaveUser(ctx, user); err != nil {
-		t.Fatalf("save user: %v", err)
+	if err := store.CreateGroupWithCreator(ctx, user, group); err != nil {
+		t.Fatalf("create group with creator: %v", err)
 	}
 
 	for index := 0; index < 3; index++ {
@@ -59,9 +54,12 @@ func TestRecordServiceIncompleteWishlist(t *testing.T) {
 		t.Fatalf("create group: %v", err)
 	}
 
-	user := &models.User{WeChatID: "wishlist-user", Nickname: "wishlist-user", GroupID: &group.ID, StatusUpdatedAt: time.Now()}
+	user := &models.User{WeChatID: "wishlist-user", Nickname: "wishlist-user", StatusUpdatedAt: time.Now()}
 	if err := store.CreateUser(ctx, user); err != nil {
 		t.Fatalf("create user: %v", err)
+	}
+	if err := store.AddUserToGroup(ctx, user, group.ID); err != nil {
+		t.Fatalf("add user to group: %v", err)
 	}
 
 	completedAt := time.Now().Add(-time.Hour)
@@ -90,5 +88,100 @@ func TestRecordServiceIncompleteWishlist(t *testing.T) {
 	}
 	if reloaded.CompletedAt != nil {
 		t.Fatalf("expected persisted completed_at to be nil, got %v", reloaded.CompletedAt)
+	}
+}
+
+func TestRecordServiceCreateWishlistPersistsPriority(t *testing.T) {
+	store := newTestStore(t)
+	svc := NewRecordService(store, newTestLogger())
+	ctx := context.Background()
+
+	user := &models.User{WeChatID: "wishlist-priority-user", Nickname: "wishlist-priority-user", StatusUpdatedAt: time.Now()}
+	if err := store.CreateUser(ctx, user); err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	group := &models.Group{Name: "wishlist-priority-group", InviteCode: "WISH02", CreatorID: user.ID}
+	if err := store.CreateGroupWithCreator(ctx, user, group); err != nil {
+		t.Fatalf("create group with creator: %v", err)
+	}
+
+	created, err := svc.CreateWishlist(ctx, user.ID, "plan a trip", "high")
+	if err != nil {
+		t.Fatalf("create wishlist: %v", err)
+	}
+	if created.Priority != "high" {
+		t.Fatalf("expected created priority high, got %q", created.Priority)
+	}
+
+	result, err := svc.ListWishlist(ctx, user.ID, NewPagination(1, 10))
+	if err != nil {
+		t.Fatalf("list wishlist: %v", err)
+	}
+	if len(result.Items) != 1 {
+		t.Fatalf("expected 1 wishlist item, got %d", len(result.Items))
+	}
+	if result.Items[0].Priority != "high" {
+		t.Fatalf("expected listed priority high, got %q", result.Items[0].Priority)
+	}
+
+	defaulted, err := svc.CreateWishlist(ctx, user.ID, "buy flowers", "")
+	if err != nil {
+		t.Fatalf("create wishlist with default priority: %v", err)
+	}
+	if defaulted.Priority != "medium" {
+		t.Fatalf("expected default priority medium, got %q", defaulted.Priority)
+	}
+	stored, err := store.GetWishlistItemByID(ctx, defaulted.ID)
+	if err != nil {
+		t.Fatalf("reload wishlist item: %v", err)
+	}
+	if stored.Priority != "medium" {
+		t.Fatalf("expected stored default priority medium, got %q", stored.Priority)
+	}
+}
+
+func TestRecordServiceUpdateWishlistPriority(t *testing.T) {
+	store := newTestStore(t)
+	svc := NewRecordService(store, newTestLogger())
+	ctx := context.Background()
+
+	user := &models.User{WeChatID: "wishlist-update-user", Nickname: "wishlist-update-user", StatusUpdatedAt: time.Now()}
+	if err := store.CreateUser(ctx, user); err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	group := &models.Group{Name: "wishlist-update-group", InviteCode: "WISH03", CreatorID: user.ID}
+	if err := store.CreateGroupWithCreator(ctx, user, group); err != nil {
+		t.Fatalf("create group with creator: %v", err)
+	}
+	item := &models.Wishlist{GroupID: group.ID, Content: "camping", Priority: "low"}
+	if err := store.CreateWishlistItem(ctx, item); err != nil {
+		t.Fatalf("create wishlist item: %v", err)
+	}
+
+	updated, err := svc.UpdateWishlistPriority(ctx, user.ID, item.ID, "high")
+	if err != nil {
+		t.Fatalf("update wishlist priority: %v", err)
+	}
+	if updated.Priority != "high" {
+		t.Fatalf("expected updated priority high, got %q", updated.Priority)
+	}
+
+	reloaded, err := store.GetWishlistItemByID(ctx, item.ID)
+	if err != nil {
+		t.Fatalf("reload wishlist item: %v", err)
+	}
+	if reloaded.Priority != "high" {
+		t.Fatalf("expected persisted priority high, got %q", reloaded.Priority)
+	}
+
+	result, err := svc.ListWishlist(ctx, user.ID, NewPagination(1, 10))
+	if err != nil {
+		t.Fatalf("list wishlist: %v", err)
+	}
+	if len(result.Items) != 1 {
+		t.Fatalf("expected 1 wishlist item, got %d", len(result.Items))
+	}
+	if result.Items[0].Priority != "high" {
+		t.Fatalf("expected listed priority high, got %q", result.Items[0].Priority)
 	}
 }

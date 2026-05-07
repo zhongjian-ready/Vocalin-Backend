@@ -61,17 +61,29 @@ func (s *HomeService) UpdatePinnedMessage(ctx context.Context, userID uint, cont
 }
 
 func (s *HomeService) GetDashboard(ctx context.Context, userID uint) (*DashboardResult, error) {
-	_, groupID, err := s.currentGroupUser(ctx, userID)
+	user, err := s.currentUser(ctx, userID)
 	if err != nil {
 		return nil, err
 	}
+	if user.CurrentGroupID == nil {
+		return &DashboardResult{}, nil
+	}
+	membership, err := s.store.GetGroupMember(ctx, *user.CurrentGroupID, user.ID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return &DashboardResult{}, nil
+		}
+		return nil, fmt.Errorf("get group member: %w", err)
+	}
+	groupID := *user.CurrentGroupID
 	group, err := s.store.GetGroupWithMembers(ctx, groupID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, ErrGroupNotFound
+			return &DashboardResult{}, nil
 		}
 		return nil, fmt.Errorf("get group: %w", err)
 	}
+	group.MyRole = membership.Role
 
 	latestPhoto, photoErr := s.store.GetLatestPhotoByGroup(ctx, group.ID)
 	if photoErr != nil && !errors.Is(photoErr, gorm.ErrRecordNotFound) {

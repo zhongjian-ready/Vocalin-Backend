@@ -51,9 +51,15 @@ func SetupRouter(application *app.App) (*gin.Engine, error) {
 	{
 		api.POST("/auth/logout", authHandler.Logout)
 		// Group
+		api.GET("/groups", groupHandler.ListGroups)
 		api.POST("/groups/create", groupHandler.CreateGroup)
 		api.POST("/groups/join", groupHandler.JoinGroup)
-		api.GET("/groups/me", groupHandler.GetGroupInfo)
+		api.GET("/groups/current", groupHandler.GetGroupInfo)
+		api.PUT("/groups/current", groupHandler.SwitchCurrentGroup)
+		api.DELETE("/groups/:groupId/members/me", groupHandler.LeaveGroup)
+		api.DELETE("/groups/:groupId/members/:userId", groupHandler.RemoveGroupMember)
+		api.PUT("/groups/:groupId/owner", groupHandler.TransferGroupOwnership)
+		api.DELETE("/groups/:groupId", groupHandler.DisbandGroup)
 
 		// Home
 		api.PUT("/home/timer", homeHandler.UpdateTimer)
@@ -70,6 +76,7 @@ func SetupRouter(application *app.App) (*gin.Engine, error) {
 		api.GET("/records/wishlist", recordHandler.GetWishlist)
 		api.PUT("/records/wishlist/:id/complete", recordHandler.CompleteWishlist)
 		api.PUT("/records/wishlist/:id/incomplete", recordHandler.IncompleteWishlist)
+		api.PUT("/records/wishlist/:id/priority", recordHandler.UpdateWishlistPriority)
 
 		// Profile
 		api.POST("/profile/anniversaries", profileHandler.CreateAnniversary)

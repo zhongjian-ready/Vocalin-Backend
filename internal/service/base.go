@@ -20,10 +20,18 @@ type Store interface {
 	SaveUser(ctx context.Context, user *models.User) error
 	CreateGroup(ctx context.Context, group *models.Group) error
 	SaveGroup(ctx context.Context, group *models.Group) error
+	GetGroupMember(ctx context.Context, groupID uint, userID uint) (*models.GroupMember, error)
+	ListGroupMembersByUser(ctx context.Context, userID uint) ([]models.GroupMember, error)
+	SetCurrentGroup(ctx context.Context, userID uint, groupID *uint) error
+	ListGroupsByUser(ctx context.Context, userID uint) ([]models.Group, error)
+	CountGroupMembers(ctx context.Context, groupID uint) (int64, error)
+	GetFirstGroupByUser(ctx context.Context, userID uint) (*models.Group, error)
 	GetGroupByInviteCode(ctx context.Context, inviteCode string) (*models.Group, error)
 	CreateGroupWithCreator(ctx context.Context, user *models.User, group *models.Group) error
 	AddUserToGroup(ctx context.Context, user *models.User, groupID uint) error
-	RemoveUserFromGroup(ctx context.Context, user *models.User) error
+	RemoveUserFromGroup(ctx context.Context, userID uint, groupID uint) (*uint, error)
+	TransferGroupOwnership(ctx context.Context, groupID uint, targetUserID uint) error
+	DisbandGroup(ctx context.Context, groupID uint) (map[uint]*uint, error)
 	GetGroupWithMembers(ctx context.Context, groupID uint) (*models.Group, error)
 	UpdateGroupTimer(ctx context.Context, groupID uint, title string, startDate time.Time) (*models.Group, error)
 	UpdatePinnedMessage(ctx context.Context, groupID uint, authorID uint, content string) (*models.Group, error)
@@ -72,8 +80,14 @@ func (s *baseService) currentGroupUser(ctx context.Context, userID uint) (*model
 	if err != nil {
 		return nil, 0, err
 	}
-	if user.GroupID == nil {
+	if user.CurrentGroupID == nil {
 		return nil, 0, ErrUserNotInGroup
 	}
-	return user, *user.GroupID, nil
+	if _, err := s.store.GetGroupMember(ctx, *user.CurrentGroupID, user.ID); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, 0, ErrUserNotInGroup
+		}
+		return nil, 0, err
+	}
+	return user, *user.CurrentGroupID, nil
 }

@@ -3,9 +3,15 @@ package repository
 import (
 	"context"
 	"time"
-	"vocalin-backend/internal/models"
 
 	"gorm.io/gorm"
+
+	"vocalin-backend/internal/models"
+)
+
+const (
+	groupRoleOwner  = "owner"
+	groupRoleMember = "member"
 )
 
 // Store 封装所有数据库访问，避免 Handler 直接依赖 ORM 细节。
@@ -65,6 +71,60 @@ func (s *Store) SaveGroup(ctx context.Context, group *models.Group) error {
 	return s.db.WithContext(ctx).Save(group).Error
 }
 
+func (s *Store) GetGroupMember(ctx context.Context, groupID uint, userID uint) (*models.GroupMember, error) {
+	var membership models.GroupMember
+	if err := s.db.WithContext(ctx).Where("group_id = ? AND user_id = ?", groupID, userID).First(&membership).Error; err != nil {
+		return nil, err
+	}
+	return &membership, nil
+}
+
+func (s *Store) ListGroupMembersByUser(ctx context.Context, userID uint) ([]models.GroupMember, error) {
+	var memberships []models.GroupMember
+	if err := s.db.WithContext(ctx).Where("user_id = ?", userID).Order("created_at asc, id asc").Find(&memberships).Error; err != nil {
+		return nil, err
+	}
+	return memberships, nil
+}
+
+func (s *Store) SetCurrentGroup(ctx context.Context, userID uint, groupID *uint) error {
+	return s.updateUserGroupID(s.db.WithContext(ctx), userID, groupID)
+}
+
+func (s *Store) ListGroupsByUser(ctx context.Context, userID uint) ([]models.Group, error) {
+	var groups []models.Group
+	if err := s.db.WithContext(ctx).
+		Model(&models.Group{}).
+		Joins("JOIN group_members ON group_members.group_id = groups.id AND group_members.deleted_at IS NULL").
+		Where("group_members.user_id = ?", userID).
+		Order("group_members.created_at asc, group_members.id asc").
+		Find(&groups).Error; err != nil {
+		return nil, err
+	}
+	return groups, nil
+}
+
+func (s *Store) CountGroupMembers(ctx context.Context, groupID uint) (int64, error) {
+	var count int64
+	if err := s.db.WithContext(ctx).Model(&models.GroupMember{}).Where("group_id = ?", groupID).Count(&count).Error; err != nil {
+		return 0, err
+	}
+	return count, nil
+}
+
+func (s *Store) GetFirstGroupByUser(ctx context.Context, userID uint) (*models.Group, error) {
+	var group models.Group
+	if err := s.db.WithContext(ctx).
+		Model(&models.Group{}).
+		Joins("JOIN group_members ON group_members.group_id = groups.id AND group_members.deleted_at IS NULL").
+		Where("group_members.user_id = ?", userID).
+		Order("group_members.created_at asc, group_members.id asc").
+		First(&group).Error; err != nil {
+		return nil, err
+	}
+	return &group, nil
+}
+
 func (s *Store) GetGroupByInviteCode(ctx context.Context, inviteCode string) (*models.Group, error) {
 	var group models.Group
 	if err := s.db.WithContext(ctx).Where("invite_code = ?", inviteCode).First(&group).Error; err != nil {
@@ -78,19 +138,128 @@ func (s *Store) CreateGroupWithCreator(ctx context.Context, user *models.User, g
 		if err := tx.Create(group).Error; err != nil {
 			return err
 		}
-		user.GroupID = &group.ID
-		return s.updateUserGroupID(tx, user.ID, user.GroupID)
+		if err := tx.Create(&models.GroupMember{UserID: user.ID, GroupID: group.ID, Role: groupRoleOwner}).Error; err != nil {
+			return err
+		}
+		user.CurrentGroupID = &group.ID
+		return s.updateUserGroupID(tx, user.ID, user.CurrentGroupID)
 	})
 }
 
 func (s *Store) AddUserToGroup(ctx context.Context, user *models.User, groupID uint) error {
-	user.GroupID = &groupID
-	return s.updateUserGroupID(s.db.WithContext(ctx), user.ID, user.GroupID)
+	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var membership models.GroupMember
+		err := tx.Unscoped().Where("user_id = ? AND group_id = ?", user.ID, groupID).First(&membership).Error
+		switch {
+		case err == nil:
+			if err := tx.Unscoped().Model(&membership).Updates(map[string]any{
+				"deleted_at": nil,
+				"role":       groupRoleMember,
+			}).Error; err != nil {
+				return err
+			}
+		case err == gorm.ErrRecordNotFound:
+			if err := tx.Create(&models.GroupMember{UserID: user.ID, GroupID: groupID, Role: groupRoleMember}).Error; err != nil {
+				return err
+			}
+		default:
+			return err
+		}
+		user.CurrentGroupID = &groupID
+		return s.updateUserGroupID(tx, user.ID, user.CurrentGroupID)
+	})
 }
 
-func (s *Store) RemoveUserFromGroup(ctx context.Context, user *models.User) error {
-	user.GroupID = nil
-	return s.updateUserGroupID(s.db.WithContext(ctx), user.ID, user.GroupID)
+func (s *Store) RemoveUserFromGroup(ctx context.Context, userID uint, groupID uint) (*uint, error) {
+	var nextGroupID *uint
+	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var user models.User
+		if err := tx.First(&user, userID).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("user_id = ? AND group_id = ?", userID, groupID).Delete(&models.GroupMember{}).Error; err != nil {
+			return err
+		}
+		if user.CurrentGroupID == nil || *user.CurrentGroupID != groupID {
+			nextGroupID = user.CurrentGroupID
+			return nil
+		}
+		var first models.GroupMember
+		err := tx.Where("user_id = ?", userID).Order("created_at asc, id asc").First(&first).Error
+		if err != nil {
+			if err == gorm.ErrRecordNotFound {
+				return s.updateUserGroupID(tx, userID, nil)
+			}
+			return err
+		}
+		nextGroupID = &first.GroupID
+		return s.updateUserGroupID(tx, userID, nextGroupID)
+	})
+	if err != nil {
+		return nil, err
+	}
+	return nextGroupID, nil
+}
+
+func (s *Store) TransferGroupOwnership(ctx context.Context, groupID uint, targetUserID uint) error {
+	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&models.Group{}).Where("id = ?", groupID).Update("creator_id", targetUserID).Error; err != nil {
+			return err
+		}
+		if err := tx.Model(&models.GroupMember{}).Where("group_id = ?", groupID).Update("role", groupRoleMember).Error; err != nil {
+			return err
+		}
+		return tx.Model(&models.GroupMember{}).Where("group_id = ? AND user_id = ?", groupID, targetUserID).Update("role", groupRoleOwner).Error
+	})
+}
+
+func (s *Store) DisbandGroup(ctx context.Context, groupID uint) (map[uint]*uint, error) {
+	fallbacks := make(map[uint]*uint)
+	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var memberships []models.GroupMember
+		if err := tx.Where("group_id = ?", groupID).Find(&memberships).Error; err != nil {
+			return err
+		}
+		currentGroups := make(map[uint]*uint, len(memberships))
+		for _, membership := range memberships {
+			var user models.User
+			if err := tx.Select("id", "group_id").First(&user, membership.UserID).Error; err != nil {
+				return err
+			}
+			currentGroups[membership.UserID] = user.CurrentGroupID
+		}
+		if err := tx.Where("group_id = ?", groupID).Delete(&models.GroupMember{}).Error; err != nil {
+			return err
+		}
+		for _, membership := range memberships {
+			if currentGroups[membership.UserID] != nil && *currentGroups[membership.UserID] != groupID {
+				fallbacks[membership.UserID] = currentGroups[membership.UserID]
+				continue
+			}
+			var next models.GroupMember
+			err := tx.Where("user_id = ?", membership.UserID).Order("created_at asc, id asc").First(&next).Error
+			if err != nil {
+				if err != gorm.ErrRecordNotFound {
+					return err
+				}
+				fallbacks[membership.UserID] = nil
+				if err := s.updateUserGroupID(tx, membership.UserID, nil); err != nil {
+					return err
+				}
+				continue
+			}
+			nextGroupID := next.GroupID
+			fallbacks[membership.UserID] = &nextGroupID
+			if err := s.updateUserGroupID(tx, membership.UserID, &nextGroupID); err != nil {
+				return err
+			}
+		}
+		return tx.Delete(&models.Group{}, groupID).Error
+	})
+	if err != nil {
+		return nil, err
+	}
+	return fallbacks, nil
 }
 
 func (s *Store) updateUserGroupID(db *gorm.DB, userID uint, groupID *uint) error {
@@ -99,10 +268,29 @@ func (s *Store) updateUserGroupID(db *gorm.DB, userID uint, groupID *uint) error
 
 func (s *Store) GetGroupWithMembers(ctx context.Context, groupID uint) (*models.Group, error) {
 	var group models.Group
-	if err := s.db.WithContext(ctx).Preload("Members").First(&group, groupID).Error; err != nil {
+	if err := s.db.WithContext(ctx).First(&group, groupID).Error; err != nil {
 		return nil, err
 	}
+	members, err := s.getUsersByGroup(ctx, groupID)
+	if err != nil {
+		return nil, err
+	}
+	group.Members = members
 	return &group, nil
+}
+
+func (s *Store) getUsersByGroup(ctx context.Context, groupID uint) ([]models.User, error) {
+	var users []models.User
+	if err := s.db.WithContext(ctx).
+		Model(&models.User{}).
+		Select("users.*, group_members.role AS group_role").
+		Joins("JOIN group_members ON group_members.user_id = users.id AND group_members.deleted_at IS NULL").
+		Where("group_members.group_id = ?", groupID).
+		Order("group_members.created_at asc, group_members.id asc").
+		Find(&users).Error; err != nil {
+		return nil, err
+	}
+	return users, nil
 }
 
 func (s *Store) UpdateGroupTimer(ctx context.Context, groupID uint, title string, startDate time.Time) (*models.Group, error) {

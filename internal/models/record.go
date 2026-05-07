@@ -46,6 +46,7 @@ type Wishlist struct {
 	gorm.Model
 	GroupID     uint       `gorm:"index" json:"group_id"`
 	Content     string     `json:"content"`
+	Priority    string     `gorm:"size:20;default:medium" json:"priority"`
 	IsCompleted bool       `json:"is_completed"`
 	CompletedAt *time.Time `json:"completed_at"`
 }

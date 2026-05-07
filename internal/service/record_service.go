@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"vocalin-backend/internal/models"
@@ -77,12 +78,12 @@ func (s *RecordService) ListNotes(ctx context.Context, userID uint, pagination P
 	return &result, nil
 }
 
-func (s *RecordService) CreateWishlist(ctx context.Context, userID uint, content string) (*models.Wishlist, error) {
+func (s *RecordService) CreateWishlist(ctx context.Context, userID uint, content string, priority string) (*models.Wishlist, error) {
 	_, groupID, err := s.currentGroupUser(ctx, userID)
 	if err != nil {
 		return nil, err
 	}
-	item := &models.Wishlist{GroupID: groupID, Content: content}
+	item := &models.Wishlist{GroupID: groupID, Content: content, Priority: normalizeWishlistPriority(priority)}
 	if err := s.store.CreateWishlistItem(ctx, item); err != nil {
 		return nil, fmt.Errorf("create wishlist item: %w", err)
 	}
@@ -108,6 +109,28 @@ func (s *RecordService) CompleteWishlist(ctx context.Context, userID, itemID uin
 
 func (s *RecordService) IncompleteWishlist(ctx context.Context, userID, itemID uint) (*models.Wishlist, error) {
 	return s.setWishlistCompletion(ctx, userID, itemID, false)
+}
+
+func (s *RecordService) UpdateWishlistPriority(ctx context.Context, userID, itemID uint, priority string) (*models.Wishlist, error) {
+	_, groupID, err := s.currentGroupUser(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	item, err := s.store.GetWishlistItemByID(ctx, itemID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrWishlistItemNotFound
+		}
+		return nil, fmt.Errorf("get wishlist item: %w", err)
+	}
+	if item.GroupID != groupID {
+		return nil, ErrForbidden
+	}
+	item.Priority = normalizeWishlistPriority(priority)
+	if err := s.store.SaveWishlistItem(ctx, item); err != nil {
+		return nil, fmt.Errorf("update wishlist item priority: %w", err)
+	}
+	return item, nil
 }
 
 func (s *RecordService) setWishlistCompletion(ctx context.Context, userID, itemID uint, completed bool) (*models.Wishlist, error) {
@@ -136,4 +159,12 @@ func (s *RecordService) setWishlistCompletion(ctx context.Context, userID, itemI
 		return nil, fmt.Errorf("update wishlist item completion: %w", err)
 	}
 	return item, nil
+}
+
+func normalizeWishlistPriority(priority string) string {
+	normalized := strings.ToLower(strings.TrimSpace(priority))
+	if normalized == "" {
+		return "medium"
+	}
+	return normalized
 }

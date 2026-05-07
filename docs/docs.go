@@ -192,6 +192,43 @@ const docTemplate = `{
                 }
             }
         },
+        "/groups": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "获取当前登录用户已加入的全部群组及当前激活群组",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Group"
+                ],
+                "summary": "获取我的群组列表",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/vocalin-backend_internal_response.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/internal_handlers.GroupListResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
         "/groups/create": {
             "post": {
                 "security": [
@@ -234,6 +271,92 @@ const docTemplate = `{
                                     "properties": {
                                         "data": {
                                             "$ref": "#/definitions/internal_handlers.GroupResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/groups/current": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "获取当前激活空间及成员信息",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Group"
+                ],
+                "summary": "获取当前空间信息",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/vocalin-backend_internal_response.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/internal_handlers.GroupResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "将当前激活空间切换为已加入的其他空间",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Group"
+                ],
+                "summary": "切换当前空间",
+                "parameters": [
+                    {
+                        "description": "Switch Group Request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_handlers.SwitchGroupRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/vocalin-backend_internal_response.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/internal_handlers.GroupSwitchResponse"
                                         }
                                     }
                                 }
@@ -294,21 +417,30 @@ const docTemplate = `{
                 }
             }
         },
-        "/groups/me": {
-            "get": {
+        "/groups/{groupId}": {
+            "delete": {
                 "security": [
                     {
                         "BearerAuth": []
                     }
                 ],
-                "description": "获取当前用户所在空间及成员信息",
+                "description": "当前群组管理员可解散群组，所有成员会失去该群组访问权限",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "Group"
                 ],
-                "summary": "获取当前空间信息",
+                "summary": "解散群组",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Group ID",
+                        "name": "groupId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -321,11 +453,144 @@ const docTemplate = `{
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/internal_handlers.GroupResponse"
+                                            "$ref": "#/definitions/internal_handlers.GroupFallbackResponse"
                                         }
                                     }
                                 }
                             ]
+                        }
+                    }
+                }
+            }
+        },
+        "/groups/{groupId}/members/me": {
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "退出指定群组；若退出的是当前激活群组，将自动选择其余群组中的第一个作为当前空间",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Group"
+                ],
+                "summary": "退出群组",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Group ID",
+                        "name": "groupId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/vocalin-backend_internal_response.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/internal_handlers.GroupFallbackResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/groups/{groupId}/members/{userId}": {
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "当前群组管理员可将指定成员移出群组",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Group"
+                ],
+                "summary": "移除群组成员",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Group ID",
+                        "name": "groupId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Target User ID",
+                        "name": "userId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/vocalin-backend_internal_response.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/groups/{groupId}/owner": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "当前群组管理员可将管理权转让给同群组其他成员",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Group"
+                ],
+                "summary": "转让群组管理权",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Group ID",
+                        "name": "groupId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Transfer Group Ownership Request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_handlers.TransferGroupOwnershipRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/vocalin-backend_internal_response.APIResponse"
                         }
                     }
                 }
@@ -1046,6 +1311,63 @@ const docTemplate = `{
                     }
                 }
             }
+        },
+        "/records/wishlist/{id}/priority": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Records"
+                ],
+                "summary": "修改愿望清单优先级",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Wishlist Item ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Update Wishlist Priority Request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_handlers.UpdateWishlistPriorityRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/vocalin-backend_internal_response.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/internal_handlers.WishlistResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
         }
     },
     "definitions": {
@@ -1168,6 +1490,39 @@ const docTemplate = `{
                 "content": {
                     "type": "string",
                     "maxLength": 255
+                },
+                "priority": {
+                    "type": "string",
+                    "enum": [
+                        "low",
+                        "medium",
+                        "high"
+                    ]
+                }
+            }
+        },
+        "internal_handlers.GroupFallbackResponse": {
+            "type": "object",
+            "properties": {
+                "current_group_id": {
+                    "type": "integer"
+                },
+                "fallback_group": {
+                    "$ref": "#/definitions/vocalin-backend_internal_service.GroupListItem"
+                }
+            }
+        },
+        "internal_handlers.GroupListResponse": {
+            "type": "object",
+            "properties": {
+                "current_group_id": {
+                    "type": "integer"
+                },
+                "groups": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/vocalin-backend_internal_service.GroupListItem"
+                    }
                 }
             }
         },
@@ -1195,6 +1550,9 @@ const docTemplate = `{
                         "$ref": "#/definitions/vocalin-backend_internal_models.User"
                     }
                 },
+                "my_role": {
+                    "type": "string"
+                },
                 "name": {
                     "type": "string"
                 },
@@ -1212,6 +1570,14 @@ const docTemplate = `{
                 },
                 "updatedAt": {
                     "type": "string"
+                }
+            }
+        },
+        "internal_handlers.GroupSwitchResponse": {
+            "type": "object",
+            "properties": {
+                "current_group_id": {
+                    "type": "integer"
                 }
             }
         },
@@ -1238,6 +1604,9 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/vocalin-backend_internal_models.User"
                     }
+                },
+                "my_role": {
+                    "type": "string"
                 },
                 "name": {
                     "type": "string"
@@ -1268,15 +1637,14 @@ const docTemplate = `{
                 "createdAt": {
                     "type": "string"
                 },
+                "current_group_id": {
+                    "type": "integer"
+                },
                 "current_status": {
                     "type": "string"
                 },
                 "deletedAt": {
                     "$ref": "#/definitions/gorm.DeletedAt"
-                },
-                "group_id": {
-                    "description": "Nullable if not in a group",
-                    "type": "integer"
                 },
                 "id": {
                     "type": "integer"
@@ -1285,6 +1653,9 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "phone": {
+                    "type": "string"
+                },
+                "role": {
                     "type": "string"
                 },
                 "status_updated_at": {
@@ -1501,6 +1872,28 @@ const docTemplate = `{
                 }
             }
         },
+        "internal_handlers.SwitchGroupRequest": {
+            "type": "object",
+            "required": [
+                "group_id"
+            ],
+            "properties": {
+                "group_id": {
+                    "type": "integer"
+                }
+            }
+        },
+        "internal_handlers.TransferGroupOwnershipRequest": {
+            "type": "object",
+            "required": [
+                "target_user_id"
+            ],
+            "properties": {
+                "target_user_id": {
+                    "type": "integer"
+                }
+            }
+        },
         "internal_handlers.UpdatePinnedMessageRequest": {
             "type": "object",
             "required": [
@@ -1542,6 +1935,22 @@ const docTemplate = `{
                 }
             }
         },
+        "internal_handlers.UpdateWishlistPriorityRequest": {
+            "type": "object",
+            "required": [
+                "priority"
+            ],
+            "properties": {
+                "priority": {
+                    "type": "string",
+                    "enum": [
+                        "low",
+                        "medium",
+                        "high"
+                    ]
+                }
+            }
+        },
         "internal_handlers.WishlistResponse": {
             "type": "object",
             "properties": {
@@ -1565,6 +1974,9 @@ const docTemplate = `{
                 },
                 "is_completed": {
                     "type": "boolean"
+                },
+                "priority": {
+                    "type": "string"
                 },
                 "updatedAt": {
                     "type": "string"
@@ -1624,6 +2036,9 @@ const docTemplate = `{
                         "$ref": "#/definitions/vocalin-backend_internal_models.User"
                     }
                 },
+                "my_role": {
+                    "type": "string"
+                },
                 "name": {
                     "type": "string"
                 },
@@ -1676,15 +2091,14 @@ const docTemplate = `{
                 "createdAt": {
                     "type": "string"
                 },
+                "current_group_id": {
+                    "type": "integer"
+                },
                 "current_status": {
                     "type": "string"
                 },
                 "deletedAt": {
                     "$ref": "#/definitions/gorm.DeletedAt"
-                },
-                "group_id": {
-                    "description": "Nullable if not in a group",
-                    "type": "integer"
                 },
                 "id": {
                     "type": "integer"
@@ -1693,6 +2107,9 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "phone": {
+                    "type": "string"
+                },
+                "role": {
                     "type": "string"
                 },
                 "status_updated_at": {
@@ -1743,6 +2160,32 @@ const docTemplate = `{
                     "$ref": "#/definitions/vocalin-backend_internal_models.Group"
                 },
                 "recent_activity": {}
+            }
+        },
+        "vocalin-backend_internal_service.GroupListItem": {
+            "type": "object",
+            "properties": {
+                "creator_id": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "invite_code": {
+                    "type": "string"
+                },
+                "is_current": {
+                    "type": "boolean"
+                },
+                "member_count": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "role": {
+                    "type": "string"
+                }
             }
         }
     },

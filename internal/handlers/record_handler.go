@@ -31,7 +31,12 @@ type CreateNoteRequest struct {
 }
 
 type CreateWishlistRequest struct {
-	Content string `json:"content" binding:"required,max=255"`
+	Content  string `json:"content" binding:"required,max=255"`
+	Priority string `json:"priority" binding:"omitempty,oneof=low medium high"`
+}
+
+type UpdateWishlistPriorityRequest struct {
+	Priority string `json:"priority" binding:"required,oneof=low medium high"`
 }
 
 func NewRecordHandler(recordService *service.RecordService) *RecordHandler {
@@ -144,7 +149,7 @@ func (h *RecordHandler) CreateWishlist(c *gin.Context) {
 		return
 	}
 
-	item, err := h.recordService.CreateWishlist(c.Request.Context(), currentUserID(c), req.Content)
+	item, err := h.recordService.CreateWishlist(c.Request.Context(), currentUserID(c), req.Content, req.Priority)
 	if err != nil {
 		writeServiceError(c, err)
 		return
@@ -195,6 +200,38 @@ func (h *RecordHandler) CompleteWishlist(c *gin.Context) {
 // @Router /records/wishlist/{id}/incomplete [put]
 func (h *RecordHandler) IncompleteWishlist(c *gin.Context) {
 	h.updateWishlistCompletion(c, false)
+}
+
+// UpdateWishlistPriority godoc
+// @Summary 修改愿望清单优先级
+// @Tags Records
+// @Accept json
+// @Produce json
+// @Param id path int true "Wishlist Item ID"
+// @Param request body UpdateWishlistPriorityRequest true "Update Wishlist Priority Request"
+// @Security BearerAuth
+// @Success 200 {object} response.APIResponse{data=WishlistResponse}
+// @Router /records/wishlist/{id}/priority [put]
+func (h *RecordHandler) UpdateWishlistPriority(c *gin.Context) {
+	itemID, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		response.Error(c, 400, "VALIDATION_ERROR", "无效的愿望清单 ID")
+		return
+	}
+
+	var req UpdateWishlistPriorityRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		writeBindError(c, err)
+		return
+	}
+
+	item, err := h.recordService.UpdateWishlistPriority(c.Request.Context(), currentUserID(c), uint(itemID), req.Priority)
+	if err != nil {
+		writeServiceError(c, err)
+		return
+	}
+
+	response.Success(c, "更新愿望清单优先级成功", item)
 }
 
 func (h *RecordHandler) updateWishlistCompletion(c *gin.Context, completed bool) {

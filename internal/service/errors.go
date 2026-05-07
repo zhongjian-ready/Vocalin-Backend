@@ -2,6 +2,11 @@ package service
 
 import "errors"
 
+const (
+	GroupRoleOwner  = "owner"
+	GroupRoleMember = "member"
+)
+
 var (
 	ErrUnauthorized            = errors.New("未授权")
 	ErrInvalidCredentials      = errors.New("昵称或密码错误")
@@ -12,6 +17,12 @@ var (
 	ErrUserNotInGroup          = errors.New("用户尚未加入空间")
 	ErrGroupNotFound           = errors.New("空间不存在")
 	ErrInvalidInviteCode       = errors.New("邀请码无效")
+	ErrGroupOwnershipTransfer  = errors.New("当前群组管理员退出前需先转让管理权")
+	ErrGroupOwnerOnly          = errors.New("仅群组管理员可执行该操作")
+	ErrGroupMemberNotFound     = errors.New("目标成员不存在")
+	ErrCannotRemoveSelf        = errors.New("不能移除自己，请使用退出空间或先转让管理权")
+	ErrCannotRemoveGroupOwner  = errors.New("不能移除群组管理员")
+	ErrCannotTransferToSelf    = errors.New("不能将群组管理权转让给自己")
 	ErrInvalidRefreshToken     = errors.New("刷新令牌无效")
 	ErrRefreshTokenRevoked     = errors.New("刷新令牌已失效")
 	ErrTimedNoteRequiresShowAt = errors.New("定时便签必须提供展示时间")

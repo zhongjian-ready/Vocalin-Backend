@@ -32,13 +32,17 @@ func writeServiceError(c *gin.Context, err error) {
 		response.Error(c, http.StatusConflict, "AUTH_REGISTER_CONFLICT", err.Error())
 	case errors.Is(err, service.ErrPasswordMismatch):
 		response.Error(c, http.StatusBadRequest, "VALIDATION_ERROR", err.Error())
+	case errors.Is(err, service.ErrCannotTransferToSelf), errors.Is(err, service.ErrCannotRemoveSelf):
+		response.Error(c, http.StatusBadRequest, "BAD_REQUEST", err.Error())
 	case errors.Is(err, service.ErrUserNotInGroup), errors.Is(err, service.ErrTimedNoteRequiresShowAt):
 		response.Error(c, http.StatusBadRequest, "BAD_REQUEST", err.Error())
 	case errors.Is(err, service.ErrUserAlreadyInGroup):
 		response.Error(c, http.StatusConflict, "GROUP_CONFLICT", err.Error())
-	case errors.Is(err, service.ErrInvalidInviteCode), errors.Is(err, service.ErrGroupNotFound), errors.Is(err, service.ErrWishlistItemNotFound):
+	case errors.Is(err, service.ErrGroupOwnershipTransfer), errors.Is(err, service.ErrCannotRemoveGroupOwner):
+		response.Error(c, http.StatusConflict, "GROUP_CONFLICT", err.Error())
+	case errors.Is(err, service.ErrInvalidInviteCode), errors.Is(err, service.ErrGroupNotFound), errors.Is(err, service.ErrWishlistItemNotFound), errors.Is(err, service.ErrGroupMemberNotFound):
 		response.Error(c, http.StatusNotFound, "RESOURCE_NOT_FOUND", err.Error())
-	case errors.Is(err, service.ErrForbidden):
+	case errors.Is(err, service.ErrForbidden), errors.Is(err, service.ErrGroupOwnerOnly):
 		response.Error(c, http.StatusForbidden, "FORBIDDEN", err.Error())
 	default:
 		response.Error(c, http.StatusInternalServerError, "INTERNAL_ERROR", "服务器内部错误")

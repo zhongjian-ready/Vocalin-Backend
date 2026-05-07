@@ -2,10 +2,12 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
 	"go.uber.org/zap"
+	"gorm.io/gorm"
 
 	"vocalin-backend/internal/models"
 )
@@ -44,11 +46,21 @@ func (s *ProfileService) ListAnniversaries(ctx context.Context, userID uint, pag
 }
 
 func (s *ProfileService) LeaveGroup(ctx context.Context, userID uint) error {
-	user, _, err := s.currentGroupUser(ctx, userID)
+	user, groupID, err := s.currentGroupUser(ctx, userID)
 	if err != nil {
 		return err
 	}
-	if err := s.store.RemoveUserFromGroup(ctx, user); err != nil {
+	membership, err := s.store.GetGroupMember(ctx, groupID, user.ID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrUserNotInGroup
+		}
+		return fmt.Errorf("get group member: %w", err)
+	}
+	if membership.Role == GroupRoleOwner {
+		return ErrGroupOwnershipTransfer
+	}
+	if _, err := s.store.RemoveUserFromGroup(ctx, user.ID, groupID); err != nil {
 		return fmt.Errorf("leave group: %w", err)
 	}
 	return nil

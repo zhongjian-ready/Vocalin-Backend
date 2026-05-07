@@ -73,13 +73,14 @@ func main() {
 	application.Logger.Info("空间已准备就绪", zap.String("group", group.Name))
 
 	// 3. Assign Users to Group
-	user1.GroupID = &group.ID
-	user2.GroupID = &group.ID
-	if err := store.SaveUser(ctx, &user1); err != nil {
+	if err := store.AddUserToGroup(ctx, &user1, group.ID); err != nil {
 		application.Logger.Fatal("更新用户空间失败", zap.Error(err))
 	}
-	if err := store.SaveUser(ctx, &user2); err != nil {
+	if err := store.AddUserToGroup(ctx, &user2, group.ID); err != nil {
 		application.Logger.Fatal("更新用户空间失败", zap.Error(err))
+	}
+	if err := store.TransferGroupOwnership(ctx, group.ID, user1.ID); err != nil {
+		application.Logger.Fatal("更新群组管理员失败", zap.Error(err))
 	}
 	application.Logger.Info("用户已加入空间")
 
@@ -135,11 +136,13 @@ func main() {
 		{
 			GroupID:     group.ID,
 			Content:     "Visit Japan",
+			Priority:    "high",
 			IsCompleted: false,
 		},
 		{
 			GroupID:     group.ID,
 			Content:     "Watch the new Marvel movie",
+			Priority:    "medium",
 			IsCompleted: true,
 		},
 	}
@@ -193,6 +196,6 @@ func ensureUserByWeChatID(ctx context.Context, store interface {
 	existing.CurrentStatus = user.CurrentStatus
 	existing.StatusUpdatedAt = user.StatusUpdatedAt
 	user.Model = existing.Model
-	user.GroupID = existing.GroupID
+	user.CurrentGroupID = existing.CurrentGroupID
 	return store.SaveUser(ctx, existing)
 }

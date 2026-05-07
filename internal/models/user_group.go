@@ -13,9 +13,10 @@ type User struct {
 	Phone           string    `gorm:"size:20;index" json:"phone,omitempty"`
 	PasswordHash    string    `gorm:"size:255" json:"-"`
 	AvatarURL       string    `json:"avatar_url"`
-	GroupID         *uint     `json:"group_id"` // Nullable if not in a group
+	CurrentGroupID  *uint     `gorm:"column:group_id" json:"current_group_id"`
 	CurrentStatus   string    `json:"current_status"`
 	StatusUpdatedAt time.Time `json:"status_updated_at"`
+	GroupRole       string    `gorm:"column:group_role;->;-:migration" json:"role,omitempty"`
 }
 
 type Group struct {
@@ -23,11 +24,19 @@ type Group struct {
 	Name                  string     `json:"name"`
 	InviteCode            string     `gorm:"uniqueIndex;size:20" json:"invite_code"`
 	CreatorID             uint       `json:"creator_id"`
-	Members               []User     `gorm:"foreignKey:GroupID" json:"members"`
+	Members               []User     `gorm:"-" json:"members"`
 	TimerTitle            string     `json:"timer_title"`
 	TimerStartDate        *time.Time `json:"timer_start_date"`
 	PinnedMessage         string     `json:"pinned_message"`
 	PinnedMessageAuthorID uint       `json:"pinned_message_author_id"`
+	MyRole                string     `gorm:"-" json:"my_role,omitempty"`
+}
+
+type GroupMember struct {
+	gorm.Model
+	UserID  uint   `gorm:"uniqueIndex:idx_group_members_user_group;index" json:"user_id"`
+	GroupID uint   `gorm:"uniqueIndex:idx_group_members_user_group;index" json:"group_id"`
+	Role    string `gorm:"size:20" json:"role"`
 }
 
 // RefreshToken 用于维护可撤销的刷新令牌会话。
