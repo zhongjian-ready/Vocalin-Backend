@@ -16,6 +16,7 @@ type HomeHandler struct {
 
 type HomeGroupResponse = models.Group
 type HomeUserResponse = models.User
+type HomeMessageListResponse = []service.MessageListItem
 
 type UpdateTimerRequest struct {
 	Title     string    `json:"title" binding:"required,min=2,max=100"`
@@ -111,6 +112,7 @@ func (h *HomeHandler) UpdatePinnedMessage(c *gin.Context) {
 
 // GetHomeDashboard godoc
 // @Summary 获取首页概览
+// @Description 获取当前首页空间信息、最近动态，以及当前用户待处理消息数量
 // @Tags Home
 // @Produce json
 // @Security BearerAuth
@@ -124,4 +126,22 @@ func (h *HomeHandler) GetHomeDashboard(c *gin.Context) {
 	}
 
 	response.Success(c, "获取首页概览成功", result)
+}
+
+// ListMessages godoc
+// @Summary 获取首页消息列表
+// @Description 获取当前用户待处理的消息列表，包含加入申请和管理员移交申请
+// @Tags Home
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} response.APIResponse{data=HomeMessageListResponse}
+// @Router /home/messages [get]
+func (h *HomeHandler) ListMessages(c *gin.Context) {
+	result, err := h.homeService.ListMessages(c.Request.Context(), currentUserID(c))
+	if err != nil {
+		writeServiceError(c, err)
+		return
+	}
+
+	response.Success(c, "获取首页消息成功", result)
 }

@@ -104,6 +104,10 @@ definitions:
         items:
           $ref: '#/definitions/vocalin-backend_internal_service.GroupListItem'
         type: array
+      pending_requests:
+        items:
+          $ref: '#/definitions/vocalin-backend_internal_service.PendingGroupRequestItem'
+        type: array
     type: object
   internal_handlers.GroupResponse:
     properties:
@@ -125,6 +129,12 @@ definitions:
         type: string
       name:
         type: string
+      pending_ownership_transfer:
+        type: boolean
+      pending_ownership_transfer_request_id:
+        type: integer
+      pending_ownership_transfer_to_user_id:
+        type: integer
       pinned_message:
         type: string
       pinned_message_author_id:
@@ -161,6 +171,12 @@ definitions:
         type: string
       name:
         type: string
+      pending_ownership_transfer:
+        type: boolean
+      pending_ownership_transfer_request_id:
+        type: integer
+      pending_ownership_transfer_to_user_id:
+        type: integer
       pinned_message:
         type: string
       pinned_message_author_id:
@@ -337,6 +353,16 @@ definitions:
     - password
     - phone
     type: object
+  internal_handlers.ReviewGroupRequestActionRequest:
+    properties:
+      action:
+        enum:
+        - approve
+        - reject
+        type: string
+    required:
+    - action
+    type: object
   internal_handlers.SwitchGroupRequest:
     properties:
       group_id:
@@ -450,6 +476,12 @@ definitions:
         type: string
       name:
         type: string
+      pending_ownership_transfer:
+        type: boolean
+      pending_ownership_transfer_request_id:
+        type: integer
+      pending_ownership_transfer_to_user_id:
+        type: integer
       pinned_message:
         type: string
       pinned_message_author_id:
@@ -527,6 +559,8 @@ definitions:
     properties:
       group:
         $ref: '#/definitions/vocalin-backend_internal_models.Group'
+      pending_message_count:
+        type: integer
       recent_activity: {}
     type: object
   vocalin-backend_internal_service.GroupListItem:
@@ -544,6 +578,48 @@ definitions:
       name:
         type: string
       role:
+        type: string
+    type: object
+  vocalin-backend_internal_service.MessageListItem:
+    properties:
+      created_at:
+        type: string
+      group_id:
+        type: integer
+      group_name:
+        type: string
+      id:
+        type: integer
+      requester_nickname:
+        type: string
+      requester_user_id:
+        type: integer
+      status:
+        type: string
+      target_nickname:
+        type: string
+      target_user_id:
+        type: integer
+      type:
+        type: string
+    type: object
+  vocalin-backend_internal_service.PendingGroupRequestItem:
+    properties:
+      created_at:
+        type: string
+      group_id:
+        type: integer
+      group_name:
+        type: string
+      id:
+        type: integer
+      invite_code:
+        type: string
+      status:
+        type: string
+      target_user_id:
+        type: integer
+      type:
         type: string
     type: object
 host: localhost:8080
@@ -661,7 +737,7 @@ paths:
       - Auth
   /groups:
     get:
-      description: 获取当前登录用户已加入的全部群组及当前激活群组
+      description: 获取当前登录用户已加入的全部群组、当前激活群组，以及我发起但仍在处理中申请/移交记录
       produces:
       - application/json
       responses:
@@ -703,6 +779,40 @@ paths:
       security:
       - BearerAuth: []
       summary: 解散群组
+      tags:
+      - Group
+  /groups/{groupId}/join-requests/{requestId}/review:
+    post:
+      consumes:
+      - application/json
+      description: 群组管理员对指定加入申请执行同意或拒绝，action 仅支持 approve 或 reject
+      parameters:
+      - description: Group ID
+        in: path
+        name: groupId
+        required: true
+        type: integer
+      - description: Request ID
+        in: path
+        name: requestId
+        required: true
+        type: integer
+      - description: Review Join Request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_handlers.ReviewGroupRequestActionRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/vocalin-backend_internal_response.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: 审批加入申请
       tags:
       - Group
   /groups/{groupId}/members/{userId}:
@@ -761,7 +871,7 @@ paths:
     put:
       consumes:
       - application/json
-      description: 当前群组管理员可将管理权转让给同群组其他成员
+      description: 当前群组管理员可向同群组其他成员发起管理权移交申请，待对方同意后才正式生效
       parameters:
       - description: Group ID
         in: path
@@ -784,6 +894,35 @@ paths:
       security:
       - BearerAuth: []
       summary: 转让群组管理权
+      tags:
+      - Group
+  /groups/{groupId}/owner/review:
+    post:
+      consumes:
+      - application/json
+      description: 被移交方对当前群组待处理的管理权移交执行同意或拒绝，action 仅支持 approve 或 reject
+      parameters:
+      - description: Group ID
+        in: path
+        name: groupId
+        required: true
+        type: integer
+      - description: Review Ownership Transfer Request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_handlers.ReviewGroupRequestActionRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/vocalin-backend_internal_response.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: 审批管理权移交
       tags:
       - Group
   /groups/create:
@@ -817,7 +956,7 @@ paths:
       - Group
   /groups/current:
     get:
-      description: 获取当前激活空间及成员信息
+      description: 获取当前激活空间及成员信息；若当前用户已发起管理员移交，会返回移交中的状态字段
       produces:
       - application/json
       responses:
@@ -838,7 +977,7 @@ paths:
     put:
       consumes:
       - application/json
-      description: 将当前激活空间切换为已加入的其他空间
+      description: 将当前激活空间切换为已正式加入的其他空间，申请中的空间不能切换
       parameters:
       - description: Switch Group Request
         in: body
@@ -867,7 +1006,7 @@ paths:
     post:
       consumes:
       - application/json
-      description: 使用邀请码加入已有空间
+      description: 使用邀请码发起加入申请，待群组管理员同意后才会正式加入空间
       parameters:
       - description: Join Group Request
         in: body
@@ -894,6 +1033,7 @@ paths:
       - Group
   /home/dashboard:
     get:
+      description: 获取当前首页空间信息、最近动态，以及当前用户待处理消息数量
       produces:
       - application/json
       responses:
@@ -909,6 +1049,28 @@ paths:
       security:
       - BearerAuth: []
       summary: 获取首页概览
+      tags:
+      - Home
+  /home/messages:
+    get:
+      description: 获取当前用户待处理的消息列表，包含加入申请和管理员移交申请
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/vocalin-backend_internal_response.APIResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/vocalin-backend_internal_service.MessageListItem'
+                  type: array
+              type: object
+      security:
+      - BearerAuth: []
+      summary: 获取首页消息列表
       tags:
       - Home
   /home/pinned:

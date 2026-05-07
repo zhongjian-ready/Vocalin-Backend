@@ -59,6 +59,8 @@ func SetupRouter(application *app.App) (*gin.Engine, error) {
 		api.DELETE("/groups/:groupId/members/me", groupHandler.LeaveGroup)
 		api.DELETE("/groups/:groupId/members/:userId", groupHandler.RemoveGroupMember)
 		api.PUT("/groups/:groupId/owner", groupHandler.TransferGroupOwnership)
+		api.POST("/groups/:groupId/join-requests/:requestId/review", groupHandler.ReviewJoinRequest)
+		api.POST("/groups/:groupId/owner/review", groupHandler.ReviewOwnershipTransfer)
 		api.DELETE("/groups/:groupId", groupHandler.DisbandGroup)
 
 		// Home
@@ -66,6 +68,7 @@ func SetupRouter(application *app.App) (*gin.Engine, error) {
 		api.PUT("/home/status", homeHandler.UpdateStatus)
 		api.PUT("/home/pinned", homeHandler.UpdatePinnedMessage)
 		api.GET("/home/dashboard", homeHandler.GetHomeDashboard)
+		api.GET("/home/messages", homeHandler.ListMessages)
 
 		// Records
 		api.POST("/records/photos", recordHandler.CreatePhoto)

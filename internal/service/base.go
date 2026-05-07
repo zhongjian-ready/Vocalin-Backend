@@ -20,6 +20,7 @@ type Store interface {
 	SaveUser(ctx context.Context, user *models.User) error
 	CreateGroup(ctx context.Context, group *models.Group) error
 	SaveGroup(ctx context.Context, group *models.Group) error
+	GetGroupByID(ctx context.Context, groupID uint) (*models.Group, error)
 	GetGroupMember(ctx context.Context, groupID uint, userID uint) (*models.GroupMember, error)
 	ListGroupMembersByUser(ctx context.Context, userID uint) ([]models.GroupMember, error)
 	SetCurrentGroup(ctx context.Context, userID uint, groupID *uint) error
@@ -31,6 +32,15 @@ type Store interface {
 	AddUserToGroup(ctx context.Context, user *models.User, groupID uint) error
 	RemoveUserFromGroup(ctx context.Context, userID uint, groupID uint) (*uint, error)
 	TransferGroupOwnership(ctx context.Context, groupID uint, targetUserID uint) error
+	CreateGroupRequest(ctx context.Context, request *models.GroupRequest) error
+	GetGroupRequestByID(ctx context.Context, requestID uint) (*models.GroupRequest, error)
+	FindPendingJoinRequest(ctx context.Context, groupID uint, requesterUserID uint) (*models.GroupRequest, error)
+	FindPendingOwnershipTransferRequest(ctx context.Context, groupID uint) (*models.GroupRequest, error)
+	ListPendingGroupRequestsByRequester(ctx context.Context, requesterUserID uint) ([]models.GroupRequest, error)
+	ListPendingGroupRequestsForTarget(ctx context.Context, targetUserID uint) ([]models.GroupRequest, error)
+	CountPendingGroupRequestsForTarget(ctx context.Context, targetUserID uint) (int64, error)
+	ApproveGroupRequest(ctx context.Context, requestID uint, reviewerUserID uint) error
+	RejectGroupRequest(ctx context.Context, requestID uint, reviewerUserID uint) error
 	DisbandGroup(ctx context.Context, groupID uint) (map[uint]*uint, error)
 	GetGroupWithMembers(ctx context.Context, groupID uint) (*models.Group, error)
 	UpdateGroupTimer(ctx context.Context, groupID uint, title string, startDate time.Time) (*models.Group, error)

@@ -71,6 +71,14 @@ func (s *Store) SaveGroup(ctx context.Context, group *models.Group) error {
 	return s.db.WithContext(ctx).Save(group).Error
 }
 
+func (s *Store) GetGroupByID(ctx context.Context, groupID uint) (*models.Group, error) {
+	var group models.Group
+	if err := s.db.WithContext(ctx).First(&group, groupID).Error; err != nil {
+		return nil, err
+	}
+	return &group, nil
+}
+
 func (s *Store) GetGroupMember(ctx context.Context, groupID uint, userID uint) (*models.GroupMember, error) {
 	var membership models.GroupMember
 	if err := s.db.WithContext(ctx).Where("group_id = ? AND user_id = ?", groupID, userID).First(&membership).Error; err != nil {
@@ -213,6 +221,123 @@ func (s *Store) TransferGroupOwnership(ctx context.Context, groupID uint, target
 	})
 }
 
+func (s *Store) CreateGroupRequest(ctx context.Context, request *models.GroupRequest) error {
+	return s.db.WithContext(ctx).Create(request).Error
+}
+
+func (s *Store) GetGroupRequestByID(ctx context.Context, requestID uint) (*models.GroupRequest, error) {
+	var request models.GroupRequest
+	if err := s.db.WithContext(ctx).First(&request, requestID).Error; err != nil {
+		return nil, err
+	}
+	return &request, nil
+}
+
+func (s *Store) FindPendingJoinRequest(ctx context.Context, groupID uint, requesterUserID uint) (*models.GroupRequest, error) {
+	var request models.GroupRequest
+	if err := s.db.WithContext(ctx).
+		Where("group_id = ? AND requester_user_id = ? AND type = ? AND status = ?", groupID, requesterUserID, models.GroupRequestTypeJoin, models.GroupRequestStatusPending).
+		First(&request).Error; err != nil {
+		return nil, err
+	}
+	return &request, nil
+}
+
+func (s *Store) FindPendingOwnershipTransferRequest(ctx context.Context, groupID uint) (*models.GroupRequest, error) {
+	var request models.GroupRequest
+	if err := s.db.WithContext(ctx).
+		Where("group_id = ? AND type = ? AND status = ?", groupID, models.GroupRequestTypeOwnershipTransfer, models.GroupRequestStatusPending).
+		Order("created_at desc, id desc").
+		First(&request).Error; err != nil {
+		return nil, err
+	}
+	return &request, nil
+}
+
+func (s *Store) ListPendingGroupRequestsByRequester(ctx context.Context, requesterUserID uint) ([]models.GroupRequest, error) {
+	var requests []models.GroupRequest
+	if err := s.db.WithContext(ctx).
+		Where("requester_user_id = ? AND status = ?", requesterUserID, models.GroupRequestStatusPending).
+		Order("created_at desc, id desc").
+		Find(&requests).Error; err != nil {
+		return nil, err
+	}
+	return requests, nil
+}
+
+func (s *Store) ListPendingGroupRequestsForTarget(ctx context.Context, targetUserID uint) ([]models.GroupRequest, error) {
+	var requests []models.GroupRequest
+	if err := s.db.WithContext(ctx).
+		Where("target_user_id = ? AND status = ?", targetUserID, models.GroupRequestStatusPending).
+		Order("created_at desc, id desc").
+		Find(&requests).Error; err != nil {
+		return nil, err
+	}
+	return requests, nil
+}
+
+func (s *Store) CountPendingGroupRequestsForTarget(ctx context.Context, targetUserID uint) (int64, error) {
+	var count int64
+	if err := s.db.WithContext(ctx).
+		Model(&models.GroupRequest{}).
+		Where("target_user_id = ? AND status = ?", targetUserID, models.GroupRequestStatusPending).
+		Count(&count).Error; err != nil {
+		return 0, err
+	}
+	return count, nil
+}
+
+func (s *Store) ApproveGroupRequest(ctx context.Context, requestID uint, reviewerUserID uint) error {
+	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var request models.GroupRequest
+		if err := tx.Where("id = ? AND status = ?", requestID, models.GroupRequestStatusPending).First(&request).Error; err != nil {
+			return err
+		}
+
+		now := time.Now()
+		switch request.Type {
+		case models.GroupRequestTypeJoin:
+			if err := s.upsertGroupMembership(tx, request.RequesterUserID, request.GroupID, groupRoleMember, true); err != nil {
+				return err
+			}
+		case models.GroupRequestTypeOwnershipTransfer:
+			if err := tx.Model(&models.Group{}).Where("id = ?", request.GroupID).Update("creator_id", request.TargetUserID).Error; err != nil {
+				return err
+			}
+			if err := tx.Model(&models.GroupMember{}).Where("group_id = ?", request.GroupID).Update("role", groupRoleMember).Error; err != nil {
+				return err
+			}
+			if err := tx.Model(&models.GroupMember{}).Where("group_id = ? AND user_id = ?", request.GroupID, request.TargetUserID).Update("role", groupRoleOwner).Error; err != nil {
+				return err
+			}
+		default:
+			return gorm.ErrInvalidData
+		}
+
+		return tx.Model(&models.GroupRequest{}).Where("id = ?", request.ID).Updates(map[string]any{
+			"status":           models.GroupRequestStatusApproved,
+			"reviewed_at":      &now,
+			"reviewer_user_id": reviewerUserID,
+		}).Error
+	})
+}
+
+func (s *Store) RejectGroupRequest(ctx context.Context, requestID uint, reviewerUserID uint) error {
+	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var request models.GroupRequest
+		if err := tx.Where("id = ? AND status = ?", requestID, models.GroupRequestStatusPending).First(&request).Error; err != nil {
+			return err
+		}
+
+		now := time.Now()
+		return tx.Model(&models.GroupRequest{}).Where("id = ?", request.ID).Updates(map[string]any{
+			"status":           models.GroupRequestStatusRejected,
+			"reviewed_at":      &now,
+			"reviewer_user_id": reviewerUserID,
+		}).Error
+	})
+}
+
 func (s *Store) DisbandGroup(ctx context.Context, groupID uint) (map[uint]*uint, error) {
 	fallbacks := make(map[uint]*uint)
 	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -264,6 +389,39 @@ func (s *Store) DisbandGroup(ctx context.Context, groupID uint) (map[uint]*uint,
 
 func (s *Store) updateUserGroupID(db *gorm.DB, userID uint, groupID *uint) error {
 	return db.Model(&models.User{}).Where("id = ?", userID).Update("group_id", groupID).Error
+}
+
+func (s *Store) upsertGroupMembership(tx *gorm.DB, userID uint, groupID uint, role string, setCurrentIfEmpty bool) error {
+	var membership models.GroupMember
+	err := tx.Unscoped().Where("user_id = ? AND group_id = ?", userID, groupID).First(&membership).Error
+	switch {
+	case err == nil:
+		if err := tx.Unscoped().Model(&membership).Updates(map[string]any{
+			"deleted_at": nil,
+			"role":       role,
+		}).Error; err != nil {
+			return err
+		}
+	case err == gorm.ErrRecordNotFound:
+		if err := tx.Create(&models.GroupMember{UserID: userID, GroupID: groupID, Role: role}).Error; err != nil {
+			return err
+		}
+	default:
+		return err
+	}
+
+	if !setCurrentIfEmpty {
+		return nil
+	}
+
+	var user models.User
+	if err := tx.Select("id", "group_id").First(&user, userID).Error; err != nil {
+		return err
+	}
+	if user.CurrentGroupID != nil {
+		return nil
+	}
+	return s.updateUserGroupID(tx, userID, &groupID)
 }
 
 func (s *Store) GetGroupWithMembers(ctx context.Context, groupID uint) (*models.Group, error) {

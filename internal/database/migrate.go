@@ -11,6 +11,7 @@ func ManagedModels() []any {
 		&models.Group{},
 		&models.User{},
 		&models.GroupMember{},
+		&models.GroupRequest{},
 		&models.Photo{},
 		&models.Comment{},
 		&models.Like{},

@@ -17,8 +17,22 @@ type HomeService struct {
 }
 
 type DashboardResult struct {
-	Group          *models.Group `json:"group"`
-	RecentActivity any           `json:"recent_activity,omitempty"`
+	Group               *models.Group `json:"group"`
+	RecentActivity      any           `json:"recent_activity,omitempty"`
+	PendingMessageCount int64         `json:"pending_message_count"`
+}
+
+type MessageListItem struct {
+	ID                uint      `json:"id"`
+	GroupID           uint      `json:"group_id"`
+	GroupName         string    `json:"group_name"`
+	Type              string    `json:"type"`
+	Status            string    `json:"status"`
+	RequesterUserID   uint      `json:"requester_user_id"`
+	RequesterNickname string    `json:"requester_nickname"`
+	TargetUserID      uint      `json:"target_user_id"`
+	TargetNickname    string    `json:"target_nickname"`
+	CreatedAt         time.Time `json:"created_at"`
 }
 
 func NewHomeService(store Store, logger *zap.Logger) *HomeService {
@@ -65,13 +79,17 @@ func (s *HomeService) GetDashboard(ctx context.Context, userID uint) (*Dashboard
 	if err != nil {
 		return nil, err
 	}
+	pendingMessageCount, err := s.store.CountPendingGroupRequestsForTarget(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("count pending group requests: %w", err)
+	}
 	if user.CurrentGroupID == nil {
-		return &DashboardResult{}, nil
+		return &DashboardResult{PendingMessageCount: pendingMessageCount}, nil
 	}
 	membership, err := s.store.GetGroupMember(ctx, *user.CurrentGroupID, user.ID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return &DashboardResult{}, nil
+			return &DashboardResult{PendingMessageCount: pendingMessageCount}, nil
 		}
 		return nil, fmt.Errorf("get group member: %w", err)
 	}
@@ -79,11 +97,20 @@ func (s *HomeService) GetDashboard(ctx context.Context, userID uint) (*Dashboard
 	group, err := s.store.GetGroupWithMembers(ctx, groupID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return &DashboardResult{}, nil
+			return &DashboardResult{PendingMessageCount: pendingMessageCount}, nil
 		}
 		return nil, fmt.Errorf("get group: %w", err)
 	}
 	group.MyRole = membership.Role
+	if request, err := s.store.FindPendingOwnershipTransferRequest(ctx, groupID); err == nil {
+		if request.RequesterUserID == userID {
+			group.PendingOwnershipTransfer = true
+			group.PendingOwnershipTransferRequestID = &request.ID
+			group.PendingOwnershipTransferToUserID = &request.TargetUserID
+		}
+	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, fmt.Errorf("find pending ownership transfer: %w", err)
+	}
 
 	latestPhoto, photoErr := s.store.GetLatestPhotoByGroup(ctx, group.ID)
 	if photoErr != nil && !errors.Is(photoErr, gorm.ErrRecordNotFound) {
@@ -102,5 +129,43 @@ func (s *HomeService) GetDashboard(ctx context.Context, userID uint) (*Dashboard
 		recentActivity = map[string]any{"type": "note", "data": latestNote}
 	}
 
-	return &DashboardResult{Group: group, RecentActivity: recentActivity}, nil
+	return &DashboardResult{Group: group, RecentActivity: recentActivity, PendingMessageCount: pendingMessageCount}, nil
+}
+
+func (s *HomeService) ListMessages(ctx context.Context, userID uint) ([]MessageListItem, error) {
+	requests, err := s.store.ListPendingGroupRequestsForTarget(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("list pending messages: %w", err)
+	}
+	items := make([]MessageListItem, 0, len(requests))
+	for _, request := range requests {
+		group, err := s.store.GetGroupByID(ctx, request.GroupID)
+		if err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				continue
+			}
+			return nil, fmt.Errorf("get message group: %w", err)
+		}
+		requester, err := s.store.GetUserByID(ctx, request.RequesterUserID)
+		if err != nil {
+			return nil, fmt.Errorf("get requester: %w", err)
+		}
+		target, err := s.store.GetUserByID(ctx, request.TargetUserID)
+		if err != nil {
+			return nil, fmt.Errorf("get target user: %w", err)
+		}
+		items = append(items, MessageListItem{
+			ID:                request.ID,
+			GroupID:           request.GroupID,
+			GroupName:         group.Name,
+			Type:              request.Type,
+			Status:            request.Status,
+			RequesterUserID:   request.RequesterUserID,
+			RequesterNickname: requester.Nickname,
+			TargetUserID:      request.TargetUserID,
+			TargetNickname:    target.Nickname,
+			CreatedAt:         request.CreatedAt,
+		})
+	}
+	return items, nil
 }

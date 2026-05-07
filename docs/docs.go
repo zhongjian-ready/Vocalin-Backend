@@ -199,7 +199,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "获取当前登录用户已加入的全部群组及当前激活群组",
+                "description": "获取当前登录用户已加入的全部群组、当前激活群组，以及我发起但仍在处理中申请/移交记录",
                 "produces": [
                     "application/json"
                 ],
@@ -287,7 +287,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "获取当前激活空间及成员信息",
+                "description": "获取当前激活空间及成员信息；若当前用户已发起管理员移交，会返回移交中的状态字段",
                 "produces": [
                     "application/json"
                 ],
@@ -322,7 +322,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "将当前激活空间切换为已加入的其他空间",
+                "description": "将当前激活空间切换为已正式加入的其他空间，申请中的空间不能切换",
                 "consumes": [
                     "application/json"
                 ],
@@ -373,7 +373,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "使用邀请码加入已有空间",
+                "description": "使用邀请码发起加入申请，待群组管理员同意后才会正式加入空间",
                 "consumes": [
                     "application/json"
                 ],
@@ -458,6 +458,59 @@ const docTemplate = `{
                                     }
                                 }
                             ]
+                        }
+                    }
+                }
+            }
+        },
+        "/groups/{groupId}/join-requests/{requestId}/review": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "群组管理员对指定加入申请执行同意或拒绝，action 仅支持 approve 或 reject",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Group"
+                ],
+                "summary": "审批加入申请",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Group ID",
+                        "name": "groupId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Request ID",
+                        "name": "requestId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Review Join Request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_handlers.ReviewGroupRequestActionRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/vocalin-backend_internal_response.APIResponse"
                         }
                     }
                 }
@@ -557,7 +610,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "当前群组管理员可将管理权转让给同群组其他成员",
+                "description": "当前群组管理员可向同群组其他成员发起管理权移交申请，待对方同意后才正式生效",
                 "consumes": [
                     "application/json"
                 ],
@@ -596,6 +649,52 @@ const docTemplate = `{
                 }
             }
         },
+        "/groups/{groupId}/owner/review": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "被移交方对当前群组待处理的管理权移交执行同意或拒绝，action 仅支持 approve 或 reject",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Group"
+                ],
+                "summary": "审批管理权移交",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Group ID",
+                        "name": "groupId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Review Ownership Transfer Request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_handlers.ReviewGroupRequestActionRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/vocalin-backend_internal_response.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/home/dashboard": {
             "get": {
                 "security": [
@@ -603,6 +702,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
+                "description": "获取当前首页空间信息、最近动态，以及当前用户待处理消息数量",
                 "produces": [
                     "application/json"
                 ],
@@ -623,6 +723,46 @@ const docTemplate = `{
                                     "properties": {
                                         "data": {
                                             "$ref": "#/definitions/vocalin-backend_internal_service.DashboardResult"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/home/messages": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "获取当前用户待处理的消息列表，包含加入申请和管理员移交申请",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Home"
+                ],
+                "summary": "获取首页消息列表",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/vocalin-backend_internal_response.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/vocalin-backend_internal_service.MessageListItem"
+                                            }
                                         }
                                     }
                                 }
@@ -1523,6 +1663,12 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/vocalin-backend_internal_service.GroupListItem"
                     }
+                },
+                "pending_requests": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/vocalin-backend_internal_service.PendingGroupRequestItem"
+                    }
                 }
             }
         },
@@ -1555,6 +1701,15 @@ const docTemplate = `{
                 },
                 "name": {
                     "type": "string"
+                },
+                "pending_ownership_transfer": {
+                    "type": "boolean"
+                },
+                "pending_ownership_transfer_request_id": {
+                    "type": "integer"
+                },
+                "pending_ownership_transfer_to_user_id": {
+                    "type": "integer"
                 },
                 "pinned_message": {
                     "type": "string"
@@ -1610,6 +1765,15 @@ const docTemplate = `{
                 },
                 "name": {
                     "type": "string"
+                },
+                "pending_ownership_transfer": {
+                    "type": "boolean"
+                },
+                "pending_ownership_transfer_request_id": {
+                    "type": "integer"
+                },
+                "pending_ownership_transfer_to_user_id": {
+                    "type": "integer"
                 },
                 "pinned_message": {
                     "type": "string"
@@ -1872,6 +2036,21 @@ const docTemplate = `{
                 }
             }
         },
+        "internal_handlers.ReviewGroupRequestActionRequest": {
+            "type": "object",
+            "required": [
+                "action"
+            ],
+            "properties": {
+                "action": {
+                    "type": "string",
+                    "enum": [
+                        "approve",
+                        "reject"
+                    ]
+                }
+            }
+        },
         "internal_handlers.SwitchGroupRequest": {
             "type": "object",
             "required": [
@@ -2042,6 +2221,15 @@ const docTemplate = `{
                 "name": {
                     "type": "string"
                 },
+                "pending_ownership_transfer": {
+                    "type": "boolean"
+                },
+                "pending_ownership_transfer_request_id": {
+                    "type": "integer"
+                },
+                "pending_ownership_transfer_to_user_id": {
+                    "type": "integer"
+                },
                 "pinned_message": {
                     "type": "string"
                 },
@@ -2159,6 +2347,9 @@ const docTemplate = `{
                 "group": {
                     "$ref": "#/definitions/vocalin-backend_internal_models.Group"
                 },
+                "pending_message_count": {
+                    "type": "integer"
+                },
                 "recent_activity": {}
             }
         },
@@ -2184,6 +2375,70 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "role": {
+                    "type": "string"
+                }
+            }
+        },
+        "vocalin-backend_internal_service.MessageListItem": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "group_id": {
+                    "type": "integer"
+                },
+                "group_name": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "requester_nickname": {
+                    "type": "string"
+                },
+                "requester_user_id": {
+                    "type": "integer"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "target_nickname": {
+                    "type": "string"
+                },
+                "target_user_id": {
+                    "type": "integer"
+                },
+                "type": {
+                    "type": "string"
+                }
+            }
+        },
+        "vocalin-backend_internal_service.PendingGroupRequestItem": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "group_id": {
+                    "type": "integer"
+                },
+                "group_name": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "invite_code": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "target_user_id": {
+                    "type": "integer"
+                },
+                "type": {
                     "type": "string"
                 }
             }

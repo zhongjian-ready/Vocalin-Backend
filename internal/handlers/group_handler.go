@@ -4,11 +4,11 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/gin-gonic/gin"
+
 	"vocalin-backend/internal/models"
 	"vocalin-backend/internal/response"
 	"vocalin-backend/internal/service"
-
-	"github.com/gin-gonic/gin"
 )
 
 type GroupHandler struct {
@@ -34,6 +34,10 @@ type SwitchGroupRequest struct {
 
 type TransferGroupOwnershipRequest struct {
 	TargetUserID uint `json:"target_user_id" binding:"required"`
+}
+
+type ReviewGroupRequestActionRequest struct {
+	Action string `json:"action" binding:"required,oneof=approve reject"`
 }
 
 func NewGroupHandler(groupService *service.GroupService) *GroupHandler {
@@ -68,7 +72,7 @@ func (h *GroupHandler) CreateGroup(c *gin.Context) {
 
 // JoinGroup godoc
 // @Summary 加入空间
-// @Description 使用邀请码加入已有空间
+// @Description 使用邀请码发起加入申请，待群组管理员同意后才会正式加入空间
 // @Tags Group
 // @Accept json
 // @Produce json
@@ -89,12 +93,12 @@ func (h *GroupHandler) JoinGroup(c *gin.Context) {
 		return
 	}
 
-	response.Success(c, "加入空间成功", group)
+	response.Success(c, "已发起申请", group)
 }
 
 // ListGroups godoc
 // @Summary 获取我的群组列表
-// @Description 获取当前登录用户已加入的全部群组及当前激活群组
+// @Description 获取当前登录用户已加入的全部群组、当前激活群组，以及我发起但仍在处理中申请/移交记录
 // @Tags Group
 // @Produce json
 // @Security BearerAuth
@@ -112,7 +116,7 @@ func (h *GroupHandler) ListGroups(c *gin.Context) {
 
 // GetGroupInfo godoc
 // @Summary 获取当前空间信息
-// @Description 获取当前激活空间及成员信息
+// @Description 获取当前激活空间及成员信息；若当前用户已发起管理员移交，会返回移交中的状态字段
 // @Tags Group
 // @Produce json
 // @Security BearerAuth
@@ -130,7 +134,7 @@ func (h *GroupHandler) GetGroupInfo(c *gin.Context) {
 
 // SwitchCurrentGroup godoc
 // @Summary 切换当前空间
-// @Description 将当前激活空间切换为已加入的其他空间
+// @Description 将当前激活空间切换为已正式加入的其他空间，申请中的空间不能切换
 // @Tags Group
 // @Accept json
 // @Produce json
@@ -209,7 +213,7 @@ func (h *GroupHandler) RemoveGroupMember(c *gin.Context) {
 
 // TransferGroupOwnership godoc
 // @Summary 转让群组管理权
-// @Description 当前群组管理员可将管理权转让给同群组其他成员
+// @Description 当前群组管理员可向同群组其他成员发起管理权移交申请，待对方同意后才正式生效
 // @Tags Group
 // @Accept json
 // @Produce json
@@ -235,7 +239,75 @@ func (h *GroupHandler) TransferGroupOwnership(c *gin.Context) {
 		return
 	}
 
-	response.Success(c, "转让群组管理权成功", nil)
+	response.Success(c, "已发起移交", nil)
+}
+
+// ReviewJoinRequest godoc
+// @Summary 审批加入申请
+// @Description 群组管理员对指定加入申请执行同意或拒绝，action 仅支持 approve 或 reject
+// @Tags Group
+// @Accept json
+// @Produce json
+// @Param groupId path int true "Group ID"
+// @Param requestId path int true "Request ID"
+// @Param request body ReviewGroupRequestActionRequest true "Review Join Request"
+// @Security BearerAuth
+// @Success 200 {object} response.APIResponse
+// @Router /groups/{groupId}/join-requests/{requestId}/review [post]
+func (h *GroupHandler) ReviewJoinRequest(c *gin.Context) {
+	groupID, ok := groupIDFromParam(c)
+	if !ok {
+		return
+	}
+
+	requestID, ok := uintFromParam(c, "requestId", "非法的申请 ID")
+	if !ok {
+		return
+	}
+
+	var req ReviewGroupRequestActionRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		writeBindError(c, err)
+		return
+	}
+
+	if err := h.groupService.ReviewJoinRequest(c.Request.Context(), currentUserID(c), groupID, requestID, req.Action); err != nil {
+		writeServiceError(c, err)
+		return
+	}
+
+	response.Success(c, "处理加入申请成功", nil)
+}
+
+// ReviewOwnershipTransfer godoc
+// @Summary 审批管理权移交
+// @Description 被移交方对当前群组待处理的管理权移交执行同意或拒绝，action 仅支持 approve 或 reject
+// @Tags Group
+// @Accept json
+// @Produce json
+// @Param groupId path int true "Group ID"
+// @Param request body ReviewGroupRequestActionRequest true "Review Ownership Transfer Request"
+// @Security BearerAuth
+// @Success 200 {object} response.APIResponse
+// @Router /groups/{groupId}/owner/review [post]
+func (h *GroupHandler) ReviewOwnershipTransfer(c *gin.Context) {
+	groupID, ok := groupIDFromParam(c)
+	if !ok {
+		return
+	}
+
+	var req ReviewGroupRequestActionRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		writeBindError(c, err)
+		return
+	}
+
+	if err := h.groupService.ReviewOwnershipTransfer(c.Request.Context(), currentUserID(c), groupID, req.Action); err != nil {
+		writeServiceError(c, err)
+		return
+	}
+
+	response.Success(c, "处理管理权移交成功", nil)
 }
 
 // DisbandGroup godoc
