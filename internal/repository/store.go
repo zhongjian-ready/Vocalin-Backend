@@ -79,18 +79,22 @@ func (s *Store) CreateGroupWithCreator(ctx context.Context, user *models.User, g
 			return err
 		}
 		user.GroupID = &group.ID
-		return tx.Save(user).Error
+		return s.updateUserGroupID(tx, user.ID, user.GroupID)
 	})
 }
 
 func (s *Store) AddUserToGroup(ctx context.Context, user *models.User, groupID uint) error {
 	user.GroupID = &groupID
-	return s.SaveUser(ctx, user)
+	return s.updateUserGroupID(s.db.WithContext(ctx), user.ID, user.GroupID)
 }
 
 func (s *Store) RemoveUserFromGroup(ctx context.Context, user *models.User) error {
 	user.GroupID = nil
-	return s.SaveUser(ctx, user)
+	return s.updateUserGroupID(s.db.WithContext(ctx), user.ID, user.GroupID)
+}
+
+func (s *Store) updateUserGroupID(db *gorm.DB, userID uint, groupID *uint) error {
+	return db.Model(&models.User{}).Where("id = ?", userID).Update("group_id", groupID).Error
 }
 
 func (s *Store) GetGroupWithMembers(ctx context.Context, groupID uint) (*models.Group, error) {
@@ -107,7 +111,7 @@ func (s *Store) UpdateGroupTimer(ctx context.Context, groupID uint, title string
 		return nil, err
 	}
 	group.TimerTitle = title
-	group.TimerStartDate = startDate
+	group.TimerStartDate = &startDate
 	if err := s.SaveGroup(ctx, &group); err != nil {
 		return nil, err
 	}
