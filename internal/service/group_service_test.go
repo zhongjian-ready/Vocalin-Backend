@@ -196,6 +196,84 @@ func TestGroupServiceTransferOwnershipAndDisbandGroup(t *testing.T) {
 	}
 }
 
+func TestGroupServiceTransferOwnershipMovesPendingJoinApprovalsToNewOwner(t *testing.T) {
+	store := newTestStore(t)
+	svc := NewGroupService(store, newTestLogger())
+	homeSvc := NewHomeService(store, newTestLogger())
+	ctx := context.Background()
+
+	owner := &models.User{WeChatID: "owner-transfer-join", Nickname: "owner-transfer-join", StatusUpdatedAt: time.Now()}
+	member := &models.User{WeChatID: "member-transfer-join", Nickname: "member-transfer-join", StatusUpdatedAt: time.Now()}
+	applicant := &models.User{WeChatID: "applicant-transfer-join", Nickname: "applicant-transfer-join", StatusUpdatedAt: time.Now()}
+	if err := store.CreateUser(ctx, owner); err != nil {
+		t.Fatalf("create owner: %v", err)
+	}
+	if err := store.CreateUser(ctx, member); err != nil {
+		t.Fatalf("create member: %v", err)
+	}
+	if err := store.CreateUser(ctx, applicant); err != nil {
+		t.Fatalf("create applicant: %v", err)
+	}
+
+	group, err := svc.CreateGroup(ctx, owner.ID, "group-transfer-join")
+	if err != nil {
+		t.Fatalf("create group: %v", err)
+	}
+	if err := store.AddUserToGroup(ctx, member, group.ID); err != nil {
+		t.Fatalf("add member to group: %v", err)
+	}
+
+	if _, err := svc.JoinGroup(ctx, applicant.ID, group.InviteCode); err != nil {
+		t.Fatalf("create join request: %v", err)
+	}
+
+	ownerMessages, err := homeSvc.ListMessages(ctx, owner.ID)
+	if err != nil {
+		t.Fatalf("list owner messages before transfer: %v", err)
+	}
+	if len(ownerMessages) != 1 || ownerMessages[0].Type != models.GroupRequestTypeJoin {
+		t.Fatalf("expected old owner to hold one pending join request, got %+v", ownerMessages)
+	}
+
+	if err := svc.TransferOwnership(ctx, owner.ID, group.ID, member.ID); err != nil {
+		t.Fatalf("transfer ownership: %v", err)
+	}
+	if err := svc.ReviewOwnershipTransfer(ctx, member.ID, group.ID, "approve"); err != nil {
+		t.Fatalf("approve transfer: %v", err)
+	}
+
+	ownerMessages, err = homeSvc.ListMessages(ctx, owner.ID)
+	if err != nil {
+		t.Fatalf("list owner messages after transfer: %v", err)
+	}
+	if len(ownerMessages) != 0 {
+		t.Fatalf("expected old owner to have no pending messages after transfer, got %+v", ownerMessages)
+	}
+
+	memberMessages, err := homeSvc.ListMessages(ctx, member.ID)
+	if err != nil {
+		t.Fatalf("list new owner messages after transfer: %v", err)
+	}
+	if len(memberMessages) != 1 {
+		t.Fatalf("expected new owner to receive one pending join request, got %+v", memberMessages)
+	}
+	if memberMessages[0].Type != models.GroupRequestTypeJoin {
+		t.Fatalf("expected pending message type %q, got %q", models.GroupRequestTypeJoin, memberMessages[0].Type)
+	}
+	if memberMessages[0].TargetUserID != member.ID {
+		t.Fatalf("expected pending join request target %d, got %d", member.ID, memberMessages[0].TargetUserID)
+	}
+	if memberMessages[0].RequesterUserID != applicant.ID {
+		t.Fatalf("expected requester %d, got %d", applicant.ID, memberMessages[0].RequesterUserID)
+	}
+	if memberMessages[0].GroupID != group.ID {
+		t.Fatalf("expected group id %d, got %d", group.ID, memberMessages[0].GroupID)
+	}
+	if memberMessages[0].TargetNickname != member.Nickname {
+		t.Fatalf("expected target nickname %q, got %q", member.Nickname, memberMessages[0].TargetNickname)
+	}
+}
+
 func TestGroupServiceRemoveMemberUpdatesTargetFallbackGroup(t *testing.T) {
 	store := newTestStore(t)
 	svc := NewGroupService(store, newTestLogger())

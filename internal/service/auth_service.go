@@ -10,6 +10,8 @@ import (
 	"vocalin-backend/internal/auth"
 	"vocalin-backend/internal/models"
 
+	mysqlDriver "github.com/go-sql-driver/mysql"
+	"github.com/mattn/go-sqlite3"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
@@ -76,10 +78,47 @@ func (s *AuthService) Register(ctx context.Context, nickname, phone, password, c
 		StatusUpdatedAt: time.Now(),
 	}
 	if err := s.store.CreateUser(ctx, user); err != nil {
+		if registerErr := registerConflictError(err); registerErr != nil {
+			return nil, registerErr
+		}
 		return nil, fmt.Errorf("create user: %w", err)
 	}
 	s.logger.Info("用户注册成功", zap.Uint("user_id", user.ID), zap.String("phone", user.Phone))
 	return s.issueTokens(ctx, user)
+}
+
+func registerConflictError(err error) error {
+	if !isUniqueConstraintError(err) {
+		return nil
+	}
+
+	message := strings.ToLower(err.Error())
+	switch {
+	case strings.Contains(message, "nickname"):
+		return ErrNicknameAlreadyExists
+	case strings.Contains(message, "phone"):
+		return ErrPhoneAlreadyExists
+	default:
+		return nil
+	}
+}
+
+func isUniqueConstraintError(err error) bool {
+	if errors.Is(err, gorm.ErrDuplicatedKey) {
+		return true
+	}
+
+	var mysqlErr *mysqlDriver.MySQLError
+	if errors.As(err, &mysqlErr) {
+		return mysqlErr.Number == 1062
+	}
+
+	var sqliteErr sqlite3.Error
+	if errors.As(err, &sqliteErr) {
+		return sqliteErr.Code == sqlite3.ErrConstraint && sqliteErr.ExtendedCode == sqlite3.ErrConstraintUnique
+	}
+
+	return false
 }
 
 func (s *AuthService) Login(ctx context.Context, nickname, password string) (*LoginResult, error) {

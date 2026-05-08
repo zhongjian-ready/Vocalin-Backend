@@ -9,8 +9,8 @@ import (
 type User struct {
 	gorm.Model
 	WeChatID        string    `gorm:"column:wechat_id;uniqueIndex;size:100" json:"wechat_id"`
-	Nickname        string    `gorm:"size:50;index" json:"nickname"`
-	Phone           string    `gorm:"size:20;index" json:"phone,omitempty"`
+	Nickname        string    `gorm:"size:50;uniqueIndex" json:"nickname"`
+	Phone           string    `gorm:"size:20;uniqueIndex" json:"phone,omitempty"`
 	PasswordHash    string    `gorm:"size:255" json:"-"`
 	AvatarURL       string    `json:"avatar_url"`
 	CurrentGroupID  *uint     `gorm:"column:group_id" json:"current_group_id"`

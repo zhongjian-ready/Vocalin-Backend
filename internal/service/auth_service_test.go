@@ -2,7 +2,12 @@ package service
 
 import (
 	"context"
+	"errors"
 	"testing"
+	"time"
+
+	"vocalin-backend/internal/models"
+	"vocalin-backend/internal/repository"
 )
 
 func TestAuthServiceRegisterAndLogin(t *testing.T) {
@@ -77,4 +82,47 @@ func TestAuthServiceRegisterRejectsPasswordMismatch(t *testing.T) {
 	if _, err := service.Register(ctx, "tester", "13800138009", "secret123", "secret456"); err == nil {
 		t.Fatal("expected password mismatch to be rejected")
 	}
+}
+
+func TestAuthServiceRegisterMapsCreateUserNicknameConflict(t *testing.T) {
+	baseStore := newTestStore(t)
+	store := &registerConflictStore{
+		Store: baseStore,
+		beforeCreate: func(ctx context.Context) error {
+			return baseStore.CreateUser(ctx, &models.User{
+				WeChatID:        "phone:13800138012-race",
+				Nickname:        "tester-race",
+				Phone:           "13800138012-race",
+				PasswordHash:    "hashed",
+				StatusUpdatedAt: time.Now(),
+			})
+		},
+	}
+	service := NewAuthService(store, newTestTokenManager(), newTestLogger())
+	ctx := context.Background()
+
+	_, err := service.Register(ctx, "tester-race", "13800138012", "secret123", "secret123")
+	if !errors.Is(err, ErrNicknameAlreadyExists) {
+		t.Fatalf("expected nickname conflict, got %v", err)
+	}
+	if store.beforeCreateCalls != 1 {
+		t.Fatalf("expected beforeCreate hook to run once, got %d", store.beforeCreateCalls)
+	}
+}
+
+type registerConflictStore struct {
+	*repository.Store
+	beforeCreate      func(ctx context.Context) error
+	beforeCreateCalls int
+}
+
+func (s *registerConflictStore) CreateUser(ctx context.Context, user *models.User) error {
+	if s.beforeCreate != nil {
+		s.beforeCreateCalls++
+		if err := s.beforeCreate(ctx); err != nil {
+			return err
+		}
+		s.beforeCreate = nil
+	}
+	return s.Store.CreateUser(ctx, user)
 }

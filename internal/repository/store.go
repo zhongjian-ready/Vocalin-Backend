@@ -310,6 +310,11 @@ func (s *Store) ApproveGroupRequest(ctx context.Context, requestID uint, reviewe
 			if err := tx.Model(&models.GroupMember{}).Where("group_id = ? AND user_id = ?", request.GroupID, request.TargetUserID).Update("role", groupRoleOwner).Error; err != nil {
 				return err
 			}
+			if err := tx.Model(&models.GroupRequest{}).
+				Where("group_id = ? AND type = ? AND status = ?", request.GroupID, models.GroupRequestTypeJoin, models.GroupRequestStatusPending).
+				Update("target_user_id", request.TargetUserID).Error; err != nil {
+				return err
+			}
 		default:
 			return gorm.ErrInvalidData
 		}
