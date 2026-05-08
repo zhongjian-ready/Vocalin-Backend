@@ -25,7 +25,6 @@ type Group struct {
 	InviteCode                        string     `gorm:"uniqueIndex;size:20" json:"invite_code"`
 	CreatorID                         uint       `json:"creator_id"`
 	Members                           []User     `gorm:"-" json:"members"`
-	TimerTitle                        string     `json:"timer_title"`
 	TimerStartDate                    *time.Time `json:"timer_start_date"`
 	PinnedMessage                     string     `json:"pinned_message"`
 	PinnedMessageAuthorID             uint       `json:"pinned_message_author_id"`

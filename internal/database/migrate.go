@@ -26,7 +26,28 @@ func AutoMigrate(db *gorm.DB) error {
 	if err := db.AutoMigrate(ManagedModels()...); err != nil {
 		return err
 	}
+	if err := backfillRecordVisibility(db); err != nil {
+		return err
+	}
 	return backfillGroupMembers(db)
+}
+
+func backfillRecordVisibility(db *gorm.DB) error {
+	updates := []struct {
+		model any
+	}{
+		{model: &models.Photo{}},
+		{model: &models.Note{}},
+		{model: &models.Wishlist{}},
+	}
+
+	for _, update := range updates {
+		if err := db.Model(update.model).Where("visibility = '' OR visibility IS NULL").Update("visibility", "public").Error; err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func backfillGroupMembers(db *gorm.DB) error {

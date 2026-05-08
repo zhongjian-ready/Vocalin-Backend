@@ -43,19 +43,22 @@ type Store interface {
 	RejectGroupRequest(ctx context.Context, requestID uint, reviewerUserID uint) error
 	DisbandGroup(ctx context.Context, groupID uint) (map[uint]*uint, error)
 	GetGroupWithMembers(ctx context.Context, groupID uint) (*models.Group, error)
-	UpdateGroupTimer(ctx context.Context, groupID uint, title string, startDate time.Time) (*models.Group, error)
 	UpdatePinnedMessage(ctx context.Context, groupID uint, authorID uint, content string) (*models.Group, error)
 	UpdateUserStatus(ctx context.Context, user *models.User, status string, updatedAt time.Time) error
-	GetLatestPhotoByGroup(ctx context.Context, groupID uint) (*models.Photo, error)
-	GetLatestNoteByGroup(ctx context.Context, groupID uint) (*models.Note, error)
+	GetLatestVisiblePhotoByGroup(ctx context.Context, groupID uint, viewerID uint) (*models.Photo, error)
+	GetLatestVisibleNoteByGroup(ctx context.Context, groupID uint, viewerID uint, now time.Time) (*models.Note, error)
 	CreateAnniversary(ctx context.Context, anniversary *models.Anniversary) error
 	ListAnniversariesByGroup(ctx context.Context, groupID uint, offset int, limit int) ([]models.Anniversary, int64, error)
 	CreatePhoto(ctx context.Context, photo *models.Photo) error
-	ListPhotosByGroup(ctx context.Context, groupID uint, offset int, limit int) ([]models.Photo, int64, error)
+	GetPhotoByID(ctx context.Context, id uint) (*models.Photo, error)
+	SavePhoto(ctx context.Context, photo *models.Photo) error
+	ListPhotosByGroup(ctx context.Context, groupID uint, viewerID uint, offset int, limit int) ([]models.Photo, int64, error)
 	CreateNote(ctx context.Context, note *models.Note) error
-	ListVisibleNotesByGroup(ctx context.Context, groupID uint, now time.Time, offset int, limit int) ([]models.Note, int64, error)
+	GetNoteByID(ctx context.Context, id uint) (*models.Note, error)
+	SaveNote(ctx context.Context, note *models.Note) error
+	ListVisibleNotesByGroup(ctx context.Context, groupID uint, viewerID uint, now time.Time, offset int, limit int) ([]models.Note, int64, error)
 	CreateWishlistItem(ctx context.Context, item *models.Wishlist) error
-	ListWishlistByGroup(ctx context.Context, groupID uint, offset int, limit int) ([]models.Wishlist, int64, error)
+	ListWishlistByGroup(ctx context.Context, groupID uint, viewerID uint, offset int, limit int) ([]models.Wishlist, int64, error)
 	GetWishlistItemByID(ctx context.Context, id uint) (*models.Wishlist, error)
 	SaveWishlistItem(ctx context.Context, item *models.Wishlist) error
 	EnsureUserByWeChatID(ctx context.Context, user *models.User) error
@@ -100,4 +103,10 @@ func (s *baseService) currentGroupUser(ctx context.Context, userID uint) (*model
 		return nil, 0, err
 	}
 	return user, *user.CurrentGroupID, nil
+}
+
+func applyGroupMembershipMetadata(group *models.Group, membership *models.GroupMember) {
+	group.MyRole = membership.Role
+	joinedAt := membership.CreatedAt
+	group.TimerStartDate = &joinedAt
 }

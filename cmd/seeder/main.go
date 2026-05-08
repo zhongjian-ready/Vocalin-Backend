@@ -56,13 +56,10 @@ func main() {
 	application.Logger.Info("用户已准备就绪", zap.String("nickname", user2.Nickname))
 
 	// 2. Create Group
-	timerStartDate := time.Now().AddDate(0, -6, 0)
 	group := models.Group{
 		Name:                  "Love Nest",
 		InviteCode:            "LOVE01",
 		CreatorID:             user1.ID,
-		TimerTitle:            "We've been together for",
-		TimerStartDate:        &timerStartDate, // 6 months ago
 		PinnedMessage:         "Dinner at 7 PM tonight! ❤️",
 		PinnedMessageAuthorID: user1.ID,
 	}

@@ -60,6 +60,11 @@ definitions:
         type: string
       type:
         type: string
+      visibility:
+        enum:
+        - public
+        - private
+        type: string
     required:
     - content
     - type
@@ -71,6 +76,11 @@ definitions:
         type: string
       url:
         maxLength: 1024
+        type: string
+      visibility:
+        enum:
+        - public
+        - private
         type: string
     required:
     - url
@@ -85,6 +95,11 @@ definitions:
         - low
         - medium
         - high
+        type: string
+      visibility:
+        enum:
+        - public
+        - private
         type: string
     required:
     - content
@@ -141,8 +156,6 @@ definitions:
         type: integer
       timer_start_date:
         type: string
-      timer_title:
-        type: string
       updatedAt:
         type: string
     type: object
@@ -182,8 +195,6 @@ definitions:
       pinned_message_author_id:
         type: integer
       timer_start_date:
-        type: string
-      timer_title:
         type: string
       updatedAt:
         type: string
@@ -283,6 +294,8 @@ definitions:
         type: string
       updatedAt:
         type: string
+      visibility:
+        type: string
     type: object
   internal_handlers.PhotoResponse:
     properties:
@@ -309,6 +322,35 @@ definitions:
       uploader_id:
         type: integer
       url:
+        type: string
+      visibility:
+        type: string
+    type: object
+  internal_handlers.ProfileUserResponse:
+    properties:
+      avatar_url:
+        type: string
+      createdAt:
+        type: string
+      current_group_id:
+        type: integer
+      current_status:
+        type: string
+      deletedAt:
+        $ref: '#/definitions/gorm.DeletedAt'
+      id:
+        type: integer
+      nickname:
+        type: string
+      phone:
+        type: string
+      role:
+        type: string
+      status_updated_at:
+        type: string
+      updatedAt:
+        type: string
+      wechat_id:
         type: string
     type: object
   internal_handlers.RefreshTokenRequest:
@@ -377,6 +419,43 @@ definitions:
     required:
     - target_user_id
     type: object
+  internal_handlers.UpdateNoteRequest:
+    properties:
+      color:
+        maxLength: 20
+        type: string
+      content:
+        maxLength: 1000
+        type: string
+      show_at:
+        type: string
+      type:
+        type: string
+      visibility:
+        enum:
+        - public
+        - private
+        type: string
+    required:
+    - content
+    - type
+    type: object
+  internal_handlers.UpdatePhotoRequest:
+    properties:
+      description:
+        maxLength: 500
+        type: string
+      url:
+        maxLength: 1024
+        type: string
+      visibility:
+        enum:
+        - public
+        - private
+        type: string
+    required:
+    - url
+    type: object
   internal_handlers.UpdatePinnedMessageRequest:
     properties:
       content:
@@ -384,6 +463,20 @@ definitions:
         type: string
     required:
     - content
+    type: object
+  internal_handlers.UpdateProfileRequest:
+    properties:
+      avatar_url:
+        maxLength: 500
+        type: string
+      nickname:
+        maxLength: 50
+        type: string
+      status:
+        maxLength: 120
+        type: string
+    required:
+    - nickname
     type: object
   internal_handlers.UpdateStatusRequest:
     properties:
@@ -393,28 +486,24 @@ definitions:
     required:
     - status
     type: object
-  internal_handlers.UpdateTimerRequest:
+  internal_handlers.UpdateWishlistRequest:
     properties:
-      start_date:
+      content:
+        maxLength: 255
         type: string
-      title:
-        maxLength: 100
-        minLength: 2
-        type: string
-    required:
-    - start_date
-    - title
-    type: object
-  internal_handlers.UpdateWishlistPriorityRequest:
-    properties:
       priority:
         enum:
         - low
         - medium
         - high
         type: string
+      visibility:
+        enum:
+        - public
+        - private
+        type: string
     required:
-    - priority
+    - content
     type: object
   internal_handlers.WishlistResponse:
     properties:
@@ -424,6 +513,8 @@ definitions:
         type: string
       createdAt:
         type: string
+      creator_id:
+        type: integer
       deletedAt:
         $ref: '#/definitions/gorm.DeletedAt'
       group_id:
@@ -435,6 +526,8 @@ definitions:
       priority:
         type: string
       updatedAt:
+        type: string
+      visibility:
         type: string
     type: object
   vocalin-backend_internal_models.Comment:
@@ -487,8 +580,6 @@ definitions:
       pinned_message_author_id:
         type: integer
       timer_start_date:
-        type: string
-      timer_title:
         type: string
       updatedAt:
         type: string
@@ -1129,34 +1220,6 @@ paths:
       summary: 更新实时状态
       tags:
       - Home
-  /home/timer:
-    put:
-      consumes:
-      - application/json
-      parameters:
-      - description: Update Timer Request
-        in: body
-        name: request
-        required: true
-        schema:
-          $ref: '#/definitions/internal_handlers.UpdateTimerRequest'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            allOf:
-            - $ref: '#/definitions/vocalin-backend_internal_response.APIResponse'
-            - properties:
-                data:
-                  $ref: '#/definitions/internal_handlers.HomeGroupResponse'
-              type: object
-      security:
-      - BearerAuth: []
-      summary: 更新陪伴计时器
-      tags:
-      - Home
   /profile/anniversaries:
     get:
       parameters:
@@ -1244,6 +1307,34 @@ paths:
       summary: 退出当前空间
       tags:
       - Profile
+  /profile/update:
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: Update Profile Request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_handlers.UpdateProfileRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/vocalin-backend_internal_response.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/internal_handlers.ProfileUserResponse'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: 更新个人资料
+      tags:
+      - Profile
   /records/notes:
     get:
       parameters:
@@ -1301,6 +1392,39 @@ paths:
       security:
       - BearerAuth: []
       summary: 创建便签
+      tags:
+      - Records
+  /records/notes/{id}:
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: Note ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Update Note Request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_handlers.UpdateNoteRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/vocalin-backend_internal_response.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/internal_handlers.NoteResponse'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: 编辑便签
       tags:
       - Records
   /records/photos:
@@ -1362,6 +1486,39 @@ paths:
       summary: 上传照片记录
       tags:
       - Records
+  /records/photos/{id}:
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: Photo ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Update Photo Request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_handlers.UpdatePhotoRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/vocalin-backend_internal_response.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/internal_handlers.PhotoResponse'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: 编辑照片记录
+      tags:
+      - Records
   /records/wishlist:
     get:
       parameters:
@@ -1421,6 +1578,39 @@ paths:
       summary: 新增愿望清单项
       tags:
       - Records
+  /records/wishlist/{id}:
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: Wishlist Item ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Update Wishlist Request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_handlers.UpdateWishlistRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/vocalin-backend_internal_response.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/internal_handlers.WishlistResponse'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: 编辑愿望清单项
+      tags:
+      - Records
   /records/wishlist/{id}/complete:
     put:
       parameters:
@@ -1459,39 +1649,6 @@ paths:
       security:
       - BearerAuth: []
       summary: 取消完成愿望清单项
-      tags:
-      - Records
-  /records/wishlist/{id}/priority:
-    put:
-      consumes:
-      - application/json
-      parameters:
-      - description: Wishlist Item ID
-        in: path
-        name: id
-        required: true
-        type: integer
-      - description: Update Wishlist Priority Request
-        in: body
-        name: request
-        required: true
-        schema:
-          $ref: '#/definitions/internal_handlers.UpdateWishlistPriorityRequest'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            allOf:
-            - $ref: '#/definitions/vocalin-backend_internal_response.APIResponse'
-            - properties:
-                data:
-                  $ref: '#/definitions/internal_handlers.WishlistResponse'
-              type: object
-      security:
-      - BearerAuth: []
-      summary: 修改愿望清单优先级
       tags:
       - Records
 securityDefinitions:

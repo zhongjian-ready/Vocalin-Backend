@@ -162,6 +162,7 @@ func (s *Store) AddUserToGroup(ctx context.Context, user *models.User, groupID u
 		case err == nil:
 			if err := tx.Unscoped().Model(&membership).Updates(map[string]any{
 				"deleted_at": nil,
+				"created_at": time.Now(),
 				"role":       groupRoleMember,
 			}).Error; err != nil {
 				return err
@@ -297,6 +298,13 @@ func (s *Store) ApproveGroupRequest(ctx context.Context, requestID uint, reviewe
 		now := time.Now()
 		switch request.Type {
 		case models.GroupRequestTypeJoin:
+			var memberCount int64
+			if err := tx.Model(&models.GroupMember{}).Where("group_id = ?", request.GroupID).Count(&memberCount).Error; err != nil {
+				return err
+			}
+			if memberCount >= 24 {
+				return gorm.ErrInvalidData
+			}
 			if err := s.upsertGroupMembership(tx, request.RequesterUserID, request.GroupID, groupRoleMember, true); err != nil {
 				return err
 			}
@@ -403,6 +411,7 @@ func (s *Store) upsertGroupMembership(tx *gorm.DB, userID uint, groupID uint, ro
 	case err == nil:
 		if err := tx.Unscoped().Model(&membership).Updates(map[string]any{
 			"deleted_at": nil,
+			"created_at": time.Now(),
 			"role":       role,
 		}).Error; err != nil {
 			return err
@@ -456,19 +465,6 @@ func (s *Store) getUsersByGroup(ctx context.Context, groupID uint) ([]models.Use
 	return users, nil
 }
 
-func (s *Store) UpdateGroupTimer(ctx context.Context, groupID uint, title string, startDate time.Time) (*models.Group, error) {
-	var group models.Group
-	if err := s.db.WithContext(ctx).First(&group, groupID).Error; err != nil {
-		return nil, err
-	}
-	group.TimerTitle = title
-	group.TimerStartDate = &startDate
-	if err := s.SaveGroup(ctx, &group); err != nil {
-		return nil, err
-	}
-	return &group, nil
-}
-
 func (s *Store) UpdatePinnedMessage(ctx context.Context, groupID uint, authorID uint, content string) (*models.Group, error) {
 	var group models.Group
 	if err := s.db.WithContext(ctx).First(&group, groupID).Error; err != nil {
@@ -488,17 +484,25 @@ func (s *Store) UpdateUserStatus(ctx context.Context, user *models.User, status 
 	return s.SaveUser(ctx, user)
 }
 
-func (s *Store) GetLatestPhotoByGroup(ctx context.Context, groupID uint) (*models.Photo, error) {
+func visibilityScopeQuery(db *gorm.DB, viewerColumn string, viewerID uint) *gorm.DB {
+	return db.Where("visibility = ? OR "+viewerColumn+" = ?", "public", viewerID)
+}
+
+func (s *Store) GetLatestVisiblePhotoByGroup(ctx context.Context, groupID uint, viewerID uint) (*models.Photo, error) {
 	var photo models.Photo
-	if err := s.db.WithContext(ctx).Where("group_id = ?", groupID).Order("created_at desc").First(&photo).Error; err != nil {
+	query := s.db.WithContext(ctx).Where("group_id = ?", groupID)
+	query = visibilityScopeQuery(query, "uploader_id", viewerID)
+	if err := query.Order("created_at desc").First(&photo).Error; err != nil {
 		return nil, err
 	}
 	return &photo, nil
 }
 
-func (s *Store) GetLatestNoteByGroup(ctx context.Context, groupID uint) (*models.Note, error) {
+func (s *Store) GetLatestVisibleNoteByGroup(ctx context.Context, groupID uint, viewerID uint, now time.Time) (*models.Note, error) {
 	var note models.Note
-	if err := s.db.WithContext(ctx).Where("group_id = ?", groupID).Order("created_at desc").First(&note).Error; err != nil {
+	query := s.db.WithContext(ctx).Where("group_id = ? AND (show_at IS NULL OR show_at <= ?)", groupID, now)
+	query = visibilityScopeQuery(query, "author_id", viewerID)
+	if err := query.Order("created_at desc").First(&note).Error; err != nil {
 		return nil, err
 	}
 	return &note, nil
@@ -525,14 +529,29 @@ func (s *Store) CreatePhoto(ctx context.Context, photo *models.Photo) error {
 	return s.db.WithContext(ctx).Create(photo).Error
 }
 
-func (s *Store) ListPhotosByGroup(ctx context.Context, groupID uint, offset int, limit int) ([]models.Photo, int64, error) {
+func (s *Store) GetPhotoByID(ctx context.Context, id uint) (*models.Photo, error) {
+	var photo models.Photo
+	if err := s.db.WithContext(ctx).First(&photo, id).Error; err != nil {
+		return nil, err
+	}
+	return &photo, nil
+}
+
+func (s *Store) SavePhoto(ctx context.Context, photo *models.Photo) error {
+	return s.db.WithContext(ctx).Save(photo).Error
+}
+
+func (s *Store) ListPhotosByGroup(ctx context.Context, groupID uint, viewerID uint, offset int, limit int) ([]models.Photo, int64, error) {
 	var photos []models.Photo
 	query := s.db.WithContext(ctx).Model(&models.Photo{}).Where("group_id = ?", groupID)
+	query = visibilityScopeQuery(query, "uploader_id", viewerID)
 	var total int64
 	if err := query.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
-	if err := s.db.WithContext(ctx).Where("group_id = ?", groupID).Preload("Comments").Preload("Likes").Order("created_at desc").Offset(offset).Limit(limit).Find(&photos).Error; err != nil {
+	listQuery := s.db.WithContext(ctx).Where("group_id = ?", groupID)
+	listQuery = visibilityScopeQuery(listQuery, "uploader_id", viewerID)
+	if err := listQuery.Preload("Comments").Preload("Likes").Order("created_at desc").Offset(offset).Limit(limit).Find(&photos).Error; err != nil {
 		return nil, 0, err
 	}
 	return photos, total, nil
@@ -542,9 +561,22 @@ func (s *Store) CreateNote(ctx context.Context, note *models.Note) error {
 	return s.db.WithContext(ctx).Create(note).Error
 }
 
-func (s *Store) ListVisibleNotesByGroup(ctx context.Context, groupID uint, now time.Time, offset int, limit int) ([]models.Note, int64, error) {
+func (s *Store) GetNoteByID(ctx context.Context, id uint) (*models.Note, error) {
+	var note models.Note
+	if err := s.db.WithContext(ctx).First(&note, id).Error; err != nil {
+		return nil, err
+	}
+	return &note, nil
+}
+
+func (s *Store) SaveNote(ctx context.Context, note *models.Note) error {
+	return s.db.WithContext(ctx).Save(note).Error
+}
+
+func (s *Store) ListVisibleNotesByGroup(ctx context.Context, groupID uint, viewerID uint, now time.Time, offset int, limit int) ([]models.Note, int64, error) {
 	var notes []models.Note
 	query := s.db.WithContext(ctx).Model(&models.Note{}).Where("group_id = ? AND (show_at IS NULL OR show_at <= ?)", groupID, now)
+	query = visibilityScopeQuery(query, "author_id", viewerID)
 	var total int64
 	if err := query.Count(&total).Error; err != nil {
 		return nil, 0, err
@@ -559,9 +591,10 @@ func (s *Store) CreateWishlistItem(ctx context.Context, item *models.Wishlist) e
 	return s.db.WithContext(ctx).Create(item).Error
 }
 
-func (s *Store) ListWishlistByGroup(ctx context.Context, groupID uint, offset int, limit int) ([]models.Wishlist, int64, error) {
+func (s *Store) ListWishlistByGroup(ctx context.Context, groupID uint, viewerID uint, offset int, limit int) ([]models.Wishlist, int64, error) {
 	var items []models.Wishlist
 	query := s.db.WithContext(ctx).Model(&models.Wishlist{}).Where("group_id = ?", groupID)
+	query = visibilityScopeQuery(query, "creator_id", viewerID)
 	var total int64
 	if err := query.Count(&total).Error; err != nil {
 		return nil, 0, err

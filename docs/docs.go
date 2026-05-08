@@ -872,56 +872,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/home/timer": {
-            "put": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Home"
-                ],
-                "summary": "更新陪伴计时器",
-                "parameters": [
-                    {
-                        "description": "Update Timer Request",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/internal_handlers.UpdateTimerRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/vocalin-backend_internal_response.APIResponse"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/internal_handlers.HomeGroupResponse"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    }
-                }
-            }
-        },
         "/profile/anniversaries": {
             "get": {
                 "security": [
@@ -1074,6 +1024,56 @@ const docTemplate = `{
                 }
             }
         },
+        "/profile/update": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Profile"
+                ],
+                "summary": "更新个人资料",
+                "parameters": [
+                    {
+                        "description": "Update Profile Request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_handlers.UpdateProfileRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/vocalin-backend_internal_response.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/internal_handlers.ProfileUserResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
         "/records/notes": {
             "get": {
                 "security": [
@@ -1153,6 +1153,63 @@ const docTemplate = `{
                         "required": true,
                         "schema": {
                             "$ref": "#/definitions/internal_handlers.CreateNoteRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/vocalin-backend_internal_response.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/internal_handlers.NoteResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/records/notes/{id}": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Records"
+                ],
+                "summary": "编辑便签",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Note ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Update Note Request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_handlers.UpdateNoteRequest"
                         }
                     }
                 ],
@@ -1282,6 +1339,63 @@ const docTemplate = `{
                 }
             }
         },
+        "/records/photos/{id}": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Records"
+                ],
+                "summary": "编辑照片记录",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Photo ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Update Photo Request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_handlers.UpdatePhotoRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/vocalin-backend_internal_response.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/internal_handlers.PhotoResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
         "/records/wishlist": {
             "get": {
                 "security": [
@@ -1386,6 +1500,63 @@ const docTemplate = `{
                 }
             }
         },
+        "/records/wishlist/{id}": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Records"
+                ],
+                "summary": "编辑愿望清单项",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Wishlist Item ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Update Wishlist Request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_handlers.UpdateWishlistRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/vocalin-backend_internal_response.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/internal_handlers.WishlistResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
         "/records/wishlist/{id}/complete": {
             "put": {
                 "security": [
@@ -1447,63 +1618,6 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/internal_handlers.WishlistResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/records/wishlist/{id}/priority": {
-            "put": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Records"
-                ],
-                "summary": "修改愿望清单优先级",
-                "parameters": [
-                    {
-                        "type": "integer",
-                        "description": "Wishlist Item ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "Update Wishlist Priority Request",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/internal_handlers.UpdateWishlistPriorityRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/vocalin-backend_internal_response.APIResponse"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/internal_handlers.WishlistResponse"
-                                        }
-                                    }
-                                }
-                            ]
                         }
                     }
                 }
@@ -1602,6 +1716,13 @@ const docTemplate = `{
                 },
                 "type": {
                     "type": "string"
+                },
+                "visibility": {
+                    "type": "string",
+                    "enum": [
+                        "public",
+                        "private"
+                    ]
                 }
             }
         },
@@ -1618,6 +1739,13 @@ const docTemplate = `{
                 "url": {
                     "type": "string",
                     "maxLength": 1024
+                },
+                "visibility": {
+                    "type": "string",
+                    "enum": [
+                        "public",
+                        "private"
+                    ]
                 }
             }
         },
@@ -1637,6 +1765,13 @@ const docTemplate = `{
                         "low",
                         "medium",
                         "high"
+                    ]
+                },
+                "visibility": {
+                    "type": "string",
+                    "enum": [
+                        "public",
+                        "private"
                     ]
                 }
             }
@@ -1720,9 +1855,6 @@ const docTemplate = `{
                 "timer_start_date": {
                     "type": "string"
                 },
-                "timer_title": {
-                    "type": "string"
-                },
                 "updatedAt": {
                     "type": "string"
                 }
@@ -1782,9 +1914,6 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "timer_start_date": {
-                    "type": "string"
-                },
-                "timer_title": {
                     "type": "string"
                 },
                 "updatedAt": {
@@ -1933,6 +2062,9 @@ const docTemplate = `{
                 },
                 "updatedAt": {
                     "type": "string"
+                },
+                "visibility": {
+                    "type": "string"
                 }
             }
         },
@@ -1973,6 +2105,50 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "url": {
+                    "type": "string"
+                },
+                "visibility": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_handlers.ProfileUserResponse": {
+            "type": "object",
+            "properties": {
+                "avatar_url": {
+                    "type": "string"
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "current_group_id": {
+                    "type": "integer"
+                },
+                "current_status": {
+                    "type": "string"
+                },
+                "deletedAt": {
+                    "$ref": "#/definitions/gorm.DeletedAt"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "nickname": {
+                    "type": "string"
+                },
+                "phone": {
+                    "type": "string"
+                },
+                "role": {
+                    "type": "string"
+                },
+                "status_updated_at": {
+                    "type": "string"
+                },
+                "updatedAt": {
+                    "type": "string"
+                },
+                "wechat_id": {
                     "type": "string"
                 }
             }
@@ -2073,6 +2249,59 @@ const docTemplate = `{
                 }
             }
         },
+        "internal_handlers.UpdateNoteRequest": {
+            "type": "object",
+            "required": [
+                "content",
+                "type"
+            ],
+            "properties": {
+                "color": {
+                    "type": "string",
+                    "maxLength": 20
+                },
+                "content": {
+                    "type": "string",
+                    "maxLength": 1000
+                },
+                "show_at": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string"
+                },
+                "visibility": {
+                    "type": "string",
+                    "enum": [
+                        "public",
+                        "private"
+                    ]
+                }
+            }
+        },
+        "internal_handlers.UpdatePhotoRequest": {
+            "type": "object",
+            "required": [
+                "url"
+            ],
+            "properties": {
+                "description": {
+                    "type": "string",
+                    "maxLength": 500
+                },
+                "url": {
+                    "type": "string",
+                    "maxLength": 1024
+                },
+                "visibility": {
+                    "type": "string",
+                    "enum": [
+                        "public",
+                        "private"
+                    ]
+                }
+            }
+        },
         "internal_handlers.UpdatePinnedMessageRequest": {
             "type": "object",
             "required": [
@@ -2082,6 +2311,26 @@ const docTemplate = `{
                 "content": {
                     "type": "string",
                     "maxLength": 500
+                }
+            }
+        },
+        "internal_handlers.UpdateProfileRequest": {
+            "type": "object",
+            "required": [
+                "nickname"
+            ],
+            "properties": {
+                "avatar_url": {
+                    "type": "string",
+                    "maxLength": 500
+                },
+                "nickname": {
+                    "type": "string",
+                    "maxLength": 50
+                },
+                "status": {
+                    "type": "string",
+                    "maxLength": 120
                 }
             }
         },
@@ -2097,35 +2346,29 @@ const docTemplate = `{
                 }
             }
         },
-        "internal_handlers.UpdateTimerRequest": {
+        "internal_handlers.UpdateWishlistRequest": {
             "type": "object",
             "required": [
-                "start_date",
-                "title"
+                "content"
             ],
             "properties": {
-                "start_date": {
-                    "type": "string"
-                },
-                "title": {
+                "content": {
                     "type": "string",
-                    "maxLength": 100,
-                    "minLength": 2
-                }
-            }
-        },
-        "internal_handlers.UpdateWishlistPriorityRequest": {
-            "type": "object",
-            "required": [
-                "priority"
-            ],
-            "properties": {
+                    "maxLength": 255
+                },
                 "priority": {
                     "type": "string",
                     "enum": [
                         "low",
                         "medium",
                         "high"
+                    ]
+                },
+                "visibility": {
+                    "type": "string",
+                    "enum": [
+                        "public",
+                        "private"
                     ]
                 }
             }
@@ -2141,6 +2384,9 @@ const docTemplate = `{
                 },
                 "createdAt": {
                     "type": "string"
+                },
+                "creator_id": {
+                    "type": "integer"
                 },
                 "deletedAt": {
                     "$ref": "#/definitions/gorm.DeletedAt"
@@ -2158,6 +2404,9 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "updatedAt": {
+                    "type": "string"
+                },
+                "visibility": {
                     "type": "string"
                 }
             }
@@ -2237,9 +2486,6 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "timer_start_date": {
-                    "type": "string"
-                },
-                "timer_title": {
                     "type": "string"
                 },
                 "updatedAt": {

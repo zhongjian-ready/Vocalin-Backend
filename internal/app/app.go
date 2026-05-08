@@ -3,6 +3,7 @@ package app
 import (
 	"fmt"
 	"vocalin-backend/internal/auth"
+	"vocalin-backend/internal/clock"
 	"vocalin-backend/internal/config"
 	"vocalin-backend/internal/database"
 	"vocalin-backend/internal/logger"
@@ -24,6 +25,10 @@ type App struct {
 }
 
 func New() (*App, error) {
+	if err := clock.SetSystemLocationToChina(); err != nil {
+		return nil, fmt.Errorf("set system timezone: %w", err)
+	}
+
 	cfg, err := config.Load()
 	if err != nil {
 		return nil, fmt.Errorf("load config: %w", err)

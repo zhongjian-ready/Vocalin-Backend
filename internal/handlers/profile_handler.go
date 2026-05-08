@@ -15,6 +15,13 @@ type ProfileHandler struct {
 }
 
 type AnniversaryResponse = models.Anniversary
+type ProfileUserResponse = models.User
+
+type UpdateProfileRequest struct {
+	AvatarURL string `json:"avatar_url" binding:"omitempty,url,max=500"`
+	Nickname  string `json:"nickname" binding:"required,max=50"`
+	Status    string `json:"status" binding:"max=120"`
+}
 
 type CreateAnniversaryRequest struct {
 	Title string    `json:"title" binding:"required,min=2,max=100"`
@@ -23,6 +30,31 @@ type CreateAnniversaryRequest struct {
 
 func NewProfileHandler(profileService *service.ProfileService) *ProfileHandler {
 	return &ProfileHandler{profileService: profileService}
+}
+
+// UpdateProfile godoc
+// @Summary 更新个人资料
+// @Tags Profile
+// @Accept json
+// @Produce json
+// @Param request body UpdateProfileRequest true "Update Profile Request"
+// @Security BearerAuth
+// @Success 200 {object} response.APIResponse{data=ProfileUserResponse}
+// @Router /profile/update [put]
+func (h *ProfileHandler) UpdateProfile(c *gin.Context) {
+	var req UpdateProfileRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		writeBindError(c, err)
+		return
+	}
+
+	user, err := h.profileService.UpdateProfile(c.Request.Context(), currentUserID(c), req.Nickname, req.AvatarURL, req.Status)
+	if err != nil {
+		writeServiceError(c, err)
+		return
+	}
+
+	response.Success(c, "更新个人资料成功", user)
 }
 
 // CreateAnniversary godoc

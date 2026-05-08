@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"go.uber.org/zap"
@@ -18,6 +19,44 @@ type ProfileService struct {
 
 func NewProfileService(store Store, logger *zap.Logger) *ProfileService {
 	return &ProfileService{baseService: newBaseService(store, logger.Named("profile-service"))}
+}
+
+func (s *ProfileService) UpdateProfile(ctx context.Context, userID uint, nickname string, avatarURL string, status string) (*models.User, error) {
+	user, err := s.currentUser(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	trimmedNickname := strings.TrimSpace(nickname)
+	if trimmedNickname == "" {
+		return nil, ErrNicknameRequired
+	}
+
+	if trimmedNickname != user.Nickname {
+		existing, err := s.store.GetUserByNickname(ctx, trimmedNickname)
+		switch {
+		case err == nil && existing.ID != user.ID:
+			return nil, ErrNicknameAlreadyExists
+		case err == nil:
+		case errors.Is(err, gorm.ErrRecordNotFound):
+		default:
+			return nil, fmt.Errorf("check nickname: %w", err)
+		}
+	}
+
+	user.Nickname = trimmedNickname
+	user.AvatarURL = strings.TrimSpace(avatarURL)
+	user.CurrentStatus = strings.TrimSpace(status)
+	user.StatusUpdatedAt = time.Now()
+
+	if err := s.store.SaveUser(ctx, user); err != nil {
+		if isUniqueConstraintError(err) {
+			return nil, ErrNicknameAlreadyExists
+		}
+		return nil, fmt.Errorf("update profile: %w", err)
+	}
+
+	return user, nil
 }
 
 func (s *ProfileService) CreateAnniversary(ctx context.Context, userID uint, title string, date time.Time) (*models.Anniversary, error) {

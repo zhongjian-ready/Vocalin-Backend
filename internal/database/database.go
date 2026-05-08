@@ -2,7 +2,9 @@ package database
 
 import (
 	"fmt"
+	"net/url"
 	"time"
+	"vocalin-backend/internal/clock"
 	"vocalin-backend/internal/config"
 
 	"go.uber.org/zap"
@@ -13,13 +15,12 @@ import (
 
 // New 创建数据库连接，并统一配置连接池和 GORM 日志行为。
 func New(cfg config.DatabaseConfig, logger *zap.Logger) (*gorm.DB, error) {
-	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=utf8mb4&parseTime=True&loc=Local",
-		cfg.User,
-		cfg.Password,
-		cfg.Host,
-		cfg.Port,
-		cfg.Name,
-	)
+	location, err := clock.ChinaLocation()
+	if err != nil {
+		return nil, fmt.Errorf("resolve database timezone: %w", err)
+	}
+
+	dsn := buildDSN(cfg, location)
 
 	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{
 		Logger: newGORMLogger(logger),
@@ -44,6 +45,17 @@ func New(cfg config.DatabaseConfig, logger *zap.Logger) (*gorm.DB, error) {
 	)
 
 	return db, nil
+}
+
+func buildDSN(cfg config.DatabaseConfig, location *time.Location) string {
+	return fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=utf8mb4&parseTime=True&loc=%s",
+		cfg.User,
+		cfg.Password,
+		cfg.Host,
+		cfg.Port,
+		cfg.Name,
+		url.QueryEscape(location.String()),
+	)
 }
 
 type gormZapWriter struct {

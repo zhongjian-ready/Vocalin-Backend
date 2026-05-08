@@ -49,6 +49,8 @@ type GroupFallbackResult struct {
 	FallbackGroup  *GroupListItem `json:"fallback_group,omitempty"`
 }
 
+const maxGroupMembers int64 = 24
+
 func (s *GroupService) buildGroupListItem(ctx context.Context, userID uint, group *models.Group, currentGroupID *uint) (*GroupListItem, error) {
 	membership, err := s.store.GetGroupMember(ctx, group.ID, userID)
 	if err != nil {
@@ -91,6 +93,11 @@ func (s *GroupService) CreateGroup(ctx context.Context, userID uint, name string
 	if err := s.store.CreateGroupWithCreator(ctx, user, group); err != nil {
 		return nil, fmt.Errorf("create group: %w", err)
 	}
+	membership, err := s.store.GetGroupMember(ctx, group.ID, user.ID)
+	if err != nil {
+		return nil, fmt.Errorf("get creator group member: %w", err)
+	}
+	applyGroupMembershipMetadata(group, membership)
 	return group, nil
 }
 
@@ -110,6 +117,13 @@ func (s *GroupService) JoinGroup(ctx context.Context, userID uint, inviteCode st
 		return nil, ErrUserAlreadyInGroup
 	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, fmt.Errorf("get group member: %w", err)
+	}
+	memberCount, err := s.store.CountGroupMembers(ctx, group.ID)
+	if err != nil {
+		return nil, fmt.Errorf("count group members: %w", err)
+	}
+	if memberCount >= maxGroupMembers {
+		return nil, ErrGroupMemberLimitReached
 	}
 	if _, err := s.store.FindPendingJoinRequest(ctx, group.ID, user.ID); err == nil {
 		return nil, ErrGroupJoinRequestPending
@@ -145,7 +159,7 @@ func (s *GroupService) GetGroupInfo(ctx context.Context, userID uint) (*models.G
 	if err != nil {
 		return nil, fmt.Errorf("get group member: %w", err)
 	}
-	group.MyRole = membership.Role
+	applyGroupMembershipMetadata(group, membership)
 	if err := s.attachPendingOwnershipTransfer(ctx, userID, group); err != nil {
 		return nil, err
 	}
@@ -377,6 +391,9 @@ func (s *GroupService) reviewGroupRequest(ctx context.Context, userID uint, requ
 		if err := s.store.ApproveGroupRequest(ctx, request.ID, userID); err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return ErrGroupRequestHandled
+			}
+			if errors.Is(err, gorm.ErrInvalidData) {
+				return ErrGroupMemberLimitReached
 			}
 			return fmt.Errorf("approve group request: %w", err)
 		}

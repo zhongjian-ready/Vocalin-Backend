@@ -39,18 +39,6 @@ func NewHomeService(store Store, logger *zap.Logger) *HomeService {
 	return &HomeService{baseService: newBaseService(store, logger.Named("home-service"))}
 }
 
-func (s *HomeService) UpdateTimer(ctx context.Context, userID uint, title string, startDate time.Time) (*models.Group, error) {
-	_, groupID, err := s.currentGroupUser(ctx, userID)
-	if err != nil {
-		return nil, err
-	}
-	group, err := s.store.UpdateGroupTimer(ctx, groupID, title, startDate)
-	if err != nil {
-		return nil, fmt.Errorf("update timer: %w", err)
-	}
-	return group, nil
-}
-
 func (s *HomeService) UpdateStatus(ctx context.Context, userID uint, status string) (*models.User, error) {
 	user, err := s.currentUser(ctx, userID)
 	if err != nil {
@@ -71,6 +59,11 @@ func (s *HomeService) UpdatePinnedMessage(ctx context.Context, userID uint, cont
 	if err != nil {
 		return nil, fmt.Errorf("update pinned message: %w", err)
 	}
+	membership, err := s.store.GetGroupMember(ctx, groupID, userID)
+	if err != nil {
+		return nil, fmt.Errorf("get group member: %w", err)
+	}
+	applyGroupMembershipMetadata(group, membership)
 	return group, nil
 }
 
@@ -101,7 +94,7 @@ func (s *HomeService) GetDashboard(ctx context.Context, userID uint) (*Dashboard
 		}
 		return nil, fmt.Errorf("get group: %w", err)
 	}
-	group.MyRole = membership.Role
+	applyGroupMembershipMetadata(group, membership)
 	if request, err := s.store.FindPendingOwnershipTransferRequest(ctx, groupID); err == nil {
 		if request.RequesterUserID == userID {
 			group.PendingOwnershipTransfer = true
@@ -112,12 +105,12 @@ func (s *HomeService) GetDashboard(ctx context.Context, userID uint) (*Dashboard
 		return nil, fmt.Errorf("find pending ownership transfer: %w", err)
 	}
 
-	latestPhoto, photoErr := s.store.GetLatestPhotoByGroup(ctx, group.ID)
+	latestPhoto, photoErr := s.store.GetLatestVisiblePhotoByGroup(ctx, group.ID, userID)
 	if photoErr != nil && !errors.Is(photoErr, gorm.ErrRecordNotFound) {
 		return nil, fmt.Errorf("load latest photo: %w", photoErr)
 	}
 
-	latestNote, noteErr := s.store.GetLatestNoteByGroup(ctx, group.ID)
+	latestNote, noteErr := s.store.GetLatestVisibleNoteByGroup(ctx, group.ID, userID, time.Now())
 	if noteErr != nil && !errors.Is(noteErr, gorm.ErrRecordNotFound) {
 		return nil, fmt.Errorf("load latest note: %w", noteErr)
 	}

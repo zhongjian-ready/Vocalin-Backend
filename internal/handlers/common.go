@@ -30,17 +30,17 @@ func writeServiceError(c *gin.Context, err error) {
 		response.Error(c, http.StatusUnauthorized, "AUTH_REFRESH_TOKEN_INVALID", err.Error())
 	case errors.Is(err, service.ErrNicknameAlreadyExists), errors.Is(err, service.ErrPhoneAlreadyExists):
 		response.Error(c, http.StatusConflict, "AUTH_REGISTER_CONFLICT", err.Error())
-	case errors.Is(err, service.ErrPasswordMismatch):
+	case errors.Is(err, service.ErrPasswordMismatch), errors.Is(err, service.ErrNicknameRequired):
 		response.Error(c, http.StatusBadRequest, "VALIDATION_ERROR", err.Error())
 	case errors.Is(err, service.ErrCannotTransferToSelf), errors.Is(err, service.ErrCannotRemoveSelf):
 		response.Error(c, http.StatusBadRequest, "BAD_REQUEST", err.Error())
-	case errors.Is(err, service.ErrUserNotInGroup), errors.Is(err, service.ErrTimedNoteRequiresShowAt), errors.Is(err, service.ErrGroupRequestHandled):
+	case errors.Is(err, service.ErrUserNotInGroup), errors.Is(err, service.ErrTimedNoteRequiresShowAt), errors.Is(err, service.ErrGroupRequestHandled), errors.Is(err, service.ErrGroupMemberLimitReached):
 		response.Error(c, http.StatusBadRequest, "BAD_REQUEST", err.Error())
 	case errors.Is(err, service.ErrUserAlreadyInGroup), errors.Is(err, service.ErrGroupJoinRequestPending), errors.Is(err, service.ErrGroupTransferPending):
 		response.Error(c, http.StatusConflict, "GROUP_CONFLICT", err.Error())
 	case errors.Is(err, service.ErrGroupOwnershipTransfer), errors.Is(err, service.ErrCannotRemoveGroupOwner):
 		response.Error(c, http.StatusConflict, "GROUP_CONFLICT", err.Error())
-	case errors.Is(err, service.ErrInvalidInviteCode), errors.Is(err, service.ErrGroupNotFound), errors.Is(err, service.ErrWishlistItemNotFound), errors.Is(err, service.ErrGroupMemberNotFound), errors.Is(err, service.ErrGroupRequestNotFound):
+	case errors.Is(err, service.ErrInvalidInviteCode), errors.Is(err, service.ErrGroupNotFound), errors.Is(err, service.ErrPhotoNotFound), errors.Is(err, service.ErrNoteNotFound), errors.Is(err, service.ErrWishlistItemNotFound), errors.Is(err, service.ErrGroupMemberNotFound), errors.Is(err, service.ErrGroupRequestNotFound):
 		response.Error(c, http.StatusNotFound, "RESOURCE_NOT_FOUND", err.Error())
 	case errors.Is(err, service.ErrForbidden), errors.Is(err, service.ErrGroupOwnerOnly):
 		response.Error(c, http.StatusForbidden, "FORBIDDEN", err.Error())
@@ -97,6 +97,8 @@ func humanizeValidationError(fieldErr validator.FieldError) string {
 		return fmt.Sprintf("字段 %s 不是合法邀请码", fieldName)
 	case "note_type":
 		return fmt.Sprintf("字段 %s 仅支持 normal、burn、timed", fieldName)
+	case "oneof":
+		return fmt.Sprintf("字段 %s 必须为允许的枚举值之一", fieldName)
 	default:
 		return fmt.Sprintf("字段 %s 校验失败", fieldName)
 	}

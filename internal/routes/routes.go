@@ -64,7 +64,6 @@ func SetupRouter(application *app.App) (*gin.Engine, error) {
 		api.DELETE("/groups/:groupId", groupHandler.DisbandGroup)
 
 		// Home
-		api.PUT("/home/timer", homeHandler.UpdateTimer)
 		api.PUT("/home/status", homeHandler.UpdateStatus)
 		api.PUT("/home/pinned", homeHandler.UpdatePinnedMessage)
 		api.GET("/home/dashboard", homeHandler.GetHomeDashboard)
@@ -72,16 +71,19 @@ func SetupRouter(application *app.App) (*gin.Engine, error) {
 
 		// Records
 		api.POST("/records/photos", recordHandler.CreatePhoto)
+		api.PUT("/records/photos/:id", recordHandler.UpdatePhoto)
 		api.GET("/records/photos", recordHandler.GetPhotos)
 		api.POST("/records/notes", recordHandler.CreateNote)
+		api.PUT("/records/notes/:id", recordHandler.UpdateNote)
 		api.GET("/records/notes", recordHandler.GetNotes)
 		api.POST("/records/wishlist", recordHandler.CreateWishlist)
+		api.PUT("/records/wishlist/:id", recordHandler.UpdateWishlist)
 		api.GET("/records/wishlist", recordHandler.GetWishlist)
 		api.PUT("/records/wishlist/:id/complete", recordHandler.CompleteWishlist)
 		api.PUT("/records/wishlist/:id/incomplete", recordHandler.IncompleteWishlist)
-		api.PUT("/records/wishlist/:id/priority", recordHandler.UpdateWishlistPriority)
 
 		// Profile
+		api.PUT("/profile/update", profileHandler.UpdateProfile)
 		api.POST("/profile/anniversaries", profileHandler.CreateAnniversary)
 		api.GET("/profile/anniversaries", profileHandler.GetAnniversaries)
 		api.POST("/profile/leave", profileHandler.LeaveGroup)

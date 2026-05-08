@@ -1,8 +1,6 @@
 package handlers
 
 import (
-	"time"
-
 	"github.com/gin-gonic/gin"
 
 	"vocalin-backend/internal/models"
@@ -18,11 +16,6 @@ type HomeGroupResponse = models.Group
 type HomeUserResponse = models.User
 type HomeMessageListResponse = []service.MessageListItem
 
-type UpdateTimerRequest struct {
-	Title     string    `json:"title" binding:"required,min=2,max=100"`
-	StartDate time.Time `json:"start_date" binding:"required"`
-}
-
 type UpdateStatusRequest struct {
 	Status string `json:"status" binding:"required,max=120"`
 }
@@ -33,31 +26,6 @@ type UpdatePinnedMessageRequest struct {
 
 func NewHomeHandler(homeService *service.HomeService) *HomeHandler {
 	return &HomeHandler{homeService: homeService}
-}
-
-// UpdateTimer godoc
-// @Summary 更新陪伴计时器
-// @Tags Home
-// @Accept json
-// @Produce json
-// @Param request body UpdateTimerRequest true "Update Timer Request"
-// @Security BearerAuth
-// @Success 200 {object} response.APIResponse{data=HomeGroupResponse}
-// @Router /home/timer [put]
-func (h *HomeHandler) UpdateTimer(c *gin.Context) {
-	var req UpdateTimerRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		writeBindError(c, err)
-		return
-	}
-
-	group, err := h.homeService.UpdateTimer(c.Request.Context(), currentUserID(c), req.Title, req.StartDate)
-	if err != nil {
-		writeServiceError(c, err)
-		return
-	}
-
-	response.Success(c, "更新计时器成功", group)
 }
 
 // UpdateStatus godoc

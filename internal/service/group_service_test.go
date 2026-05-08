@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sort"
 	"testing"
 	"time"
@@ -17,8 +18,8 @@ func TestGroupServiceGetGroupInfoIncludesMemberRoles(t *testing.T) {
 	svc := NewGroupService(store, newTestLogger())
 	ctx := context.Background()
 
-	owner := &models.User{WeChatID: "owner-group-info", Nickname: "owner-group-info", StatusUpdatedAt: time.Now()}
-	member := &models.User{WeChatID: "member-group-info", Nickname: "member-group-info", StatusUpdatedAt: time.Now()}
+	owner := &models.User{WeChatID: "owner-group-info", Nickname: "owner-group-info", Phone: "13800138101", StatusUpdatedAt: time.Now()}
+	member := &models.User{WeChatID: "member-group-info", Nickname: "member-group-info", Phone: "13800138102", StatusUpdatedAt: time.Now()}
 	if err := store.CreateUser(ctx, owner); err != nil {
 		t.Fatalf("create owner: %v", err)
 	}
@@ -38,8 +39,15 @@ func TestGroupServiceGetGroupInfoIncludesMemberRoles(t *testing.T) {
 	if err != nil {
 		t.Fatalf("get group info: %v", err)
 	}
+	ownerMembership, err := store.GetGroupMember(ctx, group.ID, owner.ID)
+	if err != nil {
+		t.Fatalf("load owner membership: %v", err)
+	}
 	if result.MyRole != GroupRoleOwner {
 		t.Fatalf("expected my role %q, got %q", GroupRoleOwner, result.MyRole)
+	}
+	if result.TimerStartDate == nil || !result.TimerStartDate.Equal(ownerMembership.CreatedAt) {
+		t.Fatalf("expected timer start date %v, got %v", ownerMembership.CreatedAt, result.TimerStartDate)
 	}
 	if len(result.Members) != 2 {
 		t.Fatalf("expected 2 members, got %d", len(result.Members))
@@ -54,6 +62,69 @@ func TestGroupServiceGetGroupInfoIncludesMemberRoles(t *testing.T) {
 	}
 	if result.Members[1].ID != member.ID || result.Members[1].GroupRole != GroupRoleMember {
 		t.Fatalf("expected member role %q, got %+v", GroupRoleMember, result.Members[1])
+	}
+
+	memberResult, err := svc.GetGroupInfo(ctx, member.ID)
+	if err != nil {
+		t.Fatalf("get member group info: %v", err)
+	}
+	memberMembership, err := store.GetGroupMember(ctx, group.ID, member.ID)
+	if err != nil {
+		t.Fatalf("load member membership: %v", err)
+	}
+	if memberResult.TimerStartDate == nil || !memberResult.TimerStartDate.Equal(memberMembership.CreatedAt) {
+		t.Fatalf("expected member timer start date %v, got %v", memberMembership.CreatedAt, memberResult.TimerStartDate)
+	}
+}
+
+func TestGroupServiceGetGroupInfoUsesLatestRejoinTime(t *testing.T) {
+	store := newTestStore(t)
+	svc := NewGroupService(store, newTestLogger())
+	ctx := context.Background()
+
+	owner := &models.User{WeChatID: "owner-rejoin", Nickname: "owner-rejoin", Phone: "13800138103", StatusUpdatedAt: time.Now()}
+	member := &models.User{WeChatID: "member-rejoin", Nickname: "member-rejoin", Phone: "13800138104", StatusUpdatedAt: time.Now()}
+	if err := store.CreateUser(ctx, owner); err != nil {
+		t.Fatalf("create owner: %v", err)
+	}
+	if err := store.CreateUser(ctx, member); err != nil {
+		t.Fatalf("create member: %v", err)
+	}
+
+	group, err := svc.CreateGroup(ctx, owner.ID, "group-rejoin")
+	if err != nil {
+		t.Fatalf("create group: %v", err)
+	}
+	if err := store.AddUserToGroup(ctx, member, group.ID); err != nil {
+		t.Fatalf("add member to group: %v", err)
+	}
+	initialMembership, err := store.GetGroupMember(ctx, group.ID, member.ID)
+	if err != nil {
+		t.Fatalf("load initial membership: %v", err)
+	}
+
+	if _, err := svc.LeaveGroup(ctx, member.ID, group.ID); err != nil {
+		t.Fatalf("leave group: %v", err)
+	}
+	time.Sleep(10 * time.Millisecond)
+	if err := store.AddUserToGroup(ctx, member, group.ID); err != nil {
+		t.Fatalf("re-add member to group: %v", err)
+	}
+
+	rejoinedMembership, err := store.GetGroupMember(ctx, group.ID, member.ID)
+	if err != nil {
+		t.Fatalf("load rejoined membership: %v", err)
+	}
+	if !rejoinedMembership.CreatedAt.After(initialMembership.CreatedAt) {
+		t.Fatalf("expected rejoin time after %v, got %v", initialMembership.CreatedAt, rejoinedMembership.CreatedAt)
+	}
+
+	result, err := svc.GetGroupInfo(ctx, member.ID)
+	if err != nil {
+		t.Fatalf("get group info after rejoin: %v", err)
+	}
+	if result.TimerStartDate == nil || !result.TimerStartDate.Equal(rejoinedMembership.CreatedAt) {
+		t.Fatalf("expected timer start date %v, got %v", rejoinedMembership.CreatedAt, result.TimerStartDate)
 	}
 }
 
@@ -471,14 +542,147 @@ func TestGroupServiceJoinGroupCreatesPendingRequest(t *testing.T) {
 	}
 }
 
+func TestGroupServiceJoinGroupRejectsWhenMemberLimitReached(t *testing.T) {
+	store := newTestStore(t)
+	svc := NewGroupService(store, newTestLogger())
+	ctx := context.Background()
+
+	owner := &models.User{WeChatID: "owner-member-limit", Nickname: "owner-member-limit", Phone: "13800138200", StatusUpdatedAt: time.Now()}
+	if err := store.CreateUser(ctx, owner); err != nil {
+		t.Fatalf("create owner: %v", err)
+	}
+
+	group, err := svc.CreateGroup(ctx, owner.ID, "group-member-limit")
+	if err != nil {
+		t.Fatalf("create group: %v", err)
+	}
+
+	for idx := 0; idx < 23; idx++ {
+		member := &models.User{
+			WeChatID:        fmt.Sprintf("member-limit-%d", idx),
+			Nickname:        fmt.Sprintf("member-limit-%d", idx),
+			Phone:           fmt.Sprintf("13800138%03d", idx+201),
+			StatusUpdatedAt: time.Now(),
+		}
+		if err := store.CreateUser(ctx, member); err != nil {
+			t.Fatalf("create member %d: %v", idx, err)
+		}
+		if err := store.AddUserToGroup(ctx, member, group.ID); err != nil {
+			t.Fatalf("add member %d to group: %v", idx, err)
+		}
+	}
+
+	applicant := &models.User{WeChatID: "applicant-member-limit", Nickname: "applicant-member-limit", Phone: "13800138230", StatusUpdatedAt: time.Now()}
+	if err := store.CreateUser(ctx, applicant); err != nil {
+		t.Fatalf("create applicant: %v", err)
+	}
+
+	joinedGroup, err := svc.JoinGroup(ctx, applicant.ID, group.InviteCode)
+	if err != ErrGroupMemberLimitReached {
+		t.Fatalf("expected ErrGroupMemberLimitReached, got group=%+v err=%v", joinedGroup, err)
+	}
+
+	if _, err := store.FindPendingJoinRequest(ctx, group.ID, applicant.ID); !errors.Is(err, gorm.ErrRecordNotFound) {
+		t.Fatalf("expected no pending join request to be created, got %v", err)
+	}
+	if _, err := store.GetGroupMember(ctx, group.ID, applicant.ID); !errors.Is(err, gorm.ErrRecordNotFound) {
+		t.Fatalf("expected applicant to remain out of group, got %v", err)
+	}
+	memberCount, err := store.CountGroupMembers(ctx, group.ID)
+	if err != nil {
+		t.Fatalf("count group members: %v", err)
+	}
+	if memberCount != maxGroupMembers {
+		t.Fatalf("expected member count %d, got %d", maxGroupMembers, memberCount)
+	}
+}
+
+func TestGroupServiceApproveJoinRequestRejectsWhenMemberLimitReached(t *testing.T) {
+	store := newTestStore(t)
+	svc := NewGroupService(store, newTestLogger())
+	homeSvc := NewHomeService(store, newTestLogger())
+	ctx := context.Background()
+
+	owner := &models.User{WeChatID: "owner-approve-member-limit", Nickname: "owner-approve-member-limit", Phone: "13800138231", StatusUpdatedAt: time.Now()}
+	applicant := &models.User{WeChatID: "applicant-approve-member-limit", Nickname: "applicant-approve-member-limit", Phone: "13800138232", StatusUpdatedAt: time.Now()}
+	if err := store.CreateUser(ctx, owner); err != nil {
+		t.Fatalf("create owner: %v", err)
+	}
+	if err := store.CreateUser(ctx, applicant); err != nil {
+		t.Fatalf("create applicant: %v", err)
+	}
+
+	group, err := svc.CreateGroup(ctx, owner.ID, "group-approve-member-limit")
+	if err != nil {
+		t.Fatalf("create group: %v", err)
+	}
+	for idx := 0; idx < 22; idx++ {
+		member := &models.User{
+			WeChatID:        fmt.Sprintf("approve-member-limit-%d", idx),
+			Nickname:        fmt.Sprintf("approve-member-limit-%d", idx),
+			Phone:           fmt.Sprintf("13800138%03d", idx+233),
+			StatusUpdatedAt: time.Now(),
+		}
+		if err := store.CreateUser(ctx, member); err != nil {
+			t.Fatalf("create member %d: %v", idx, err)
+		}
+		if err := store.AddUserToGroup(ctx, member, group.ID); err != nil {
+			t.Fatalf("add member %d to group: %v", idx, err)
+		}
+	}
+
+	if _, err := svc.JoinGroup(ctx, applicant.ID, group.InviteCode); err != nil {
+		t.Fatalf("create join request: %v", err)
+	}
+
+	extraMember := &models.User{WeChatID: "extra-member-limit", Nickname: "extra-member-limit", Phone: "13800138260", StatusUpdatedAt: time.Now()}
+	if err := store.CreateUser(ctx, extraMember); err != nil {
+		t.Fatalf("create extra member: %v", err)
+	}
+	if err := store.AddUserToGroup(ctx, extraMember, group.ID); err != nil {
+		t.Fatalf("fill group to max members: %v", err)
+	}
+
+	messages, err := homeSvc.ListMessages(ctx, owner.ID)
+	if err != nil {
+		t.Fatalf("list owner messages: %v", err)
+	}
+	if len(messages) != 1 {
+		t.Fatalf("expected 1 owner message, got %+v", messages)
+	}
+
+	err = svc.ReviewJoinRequest(ctx, owner.ID, group.ID, messages[0].ID, "approve")
+	if err != ErrGroupMemberLimitReached {
+		t.Fatalf("expected ErrGroupMemberLimitReached, got %v", err)
+	}
+
+	if _, err := store.GetGroupMember(ctx, group.ID, applicant.ID); !errors.Is(err, gorm.ErrRecordNotFound) {
+		t.Fatalf("expected applicant membership to remain absent, got %v", err)
+	}
+	request, err := store.GetGroupRequestByID(ctx, messages[0].ID)
+	if err != nil {
+		t.Fatalf("reload group request: %v", err)
+	}
+	if request.Status != models.GroupRequestStatusPending {
+		t.Fatalf("expected request to remain pending, got %q", request.Status)
+	}
+	memberCount, err := store.CountGroupMembers(ctx, group.ID)
+	if err != nil {
+		t.Fatalf("count group members: %v", err)
+	}
+	if memberCount != maxGroupMembers {
+		t.Fatalf("expected member count %d, got %d", maxGroupMembers, memberCount)
+	}
+}
+
 func TestGroupServiceTransferOwnershipCreatesPendingRequest(t *testing.T) {
 	store := newTestStore(t)
 	svc := NewGroupService(store, newTestLogger())
 	homeSvc := NewHomeService(store, newTestLogger())
 	ctx := context.Background()
 
-	owner := &models.User{WeChatID: "owner-pending-transfer", Nickname: "owner-pending-transfer", StatusUpdatedAt: time.Now()}
-	target := &models.User{WeChatID: "target-pending-transfer", Nickname: "target-pending-transfer", StatusUpdatedAt: time.Now()}
+	owner := &models.User{WeChatID: "owner-pending-transfer", Nickname: "owner-pending-transfer", Phone: "13800138105", StatusUpdatedAt: time.Now()}
+	target := &models.User{WeChatID: "target-pending-transfer", Nickname: "target-pending-transfer", Phone: "13800138106", StatusUpdatedAt: time.Now()}
 	if err := store.CreateUser(ctx, owner); err != nil {
 		t.Fatalf("create owner: %v", err)
 	}
@@ -530,6 +734,9 @@ func TestGroupServiceTransferOwnershipCreatesPendingRequest(t *testing.T) {
 	}
 	if dashboard.PendingMessageCount != 1 {
 		t.Fatalf("expected target pending message count 1, got %d", dashboard.PendingMessageCount)
+	}
+	if dashboard.Group == nil || dashboard.Group.TimerStartDate == nil || !dashboard.Group.TimerStartDate.Equal(targetMembership.CreatedAt) {
+		t.Fatalf("expected dashboard timer start date %v, got %+v", targetMembership.CreatedAt, dashboard.Group)
 	}
 
 	messages, err := homeSvc.ListMessages(ctx, target.ID)
