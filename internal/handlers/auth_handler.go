@@ -2,11 +2,12 @@ package handlers
 
 import (
 	"time"
+
+	"github.com/gin-gonic/gin"
+
 	"vocalin-backend/internal/models"
 	"vocalin-backend/internal/response"
 	"vocalin-backend/internal/service"
-
-	"github.com/gin-gonic/gin"
 )
 
 type AuthHandler struct {

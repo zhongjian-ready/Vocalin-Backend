@@ -22,82 +22,106 @@ const (
 	recordVisibilityPrivate = "private"
 )
 
+type AlbumPhotoInput struct {
+	URL string
+}
+
 func NewRecordService(store Store, logger *zap.Logger) *RecordService {
 	return &RecordService{baseService: newBaseService(store, logger.Named("record-service"))}
 }
 
-func (s *RecordService) CreatePhoto(ctx context.Context, userID uint, url, description, visibility string) (*models.Photo, error) {
+func (s *RecordService) CreateAlbum(ctx context.Context, userID uint, title, description, visibility string, photos []AlbumPhotoInput) (*models.Album, error) {
 	user, groupID, err := s.currentGroupUser(ctx, userID)
 	if err != nil {
 		return nil, err
 	}
-	photo := &models.Photo{GroupID: groupID, UploaderID: user.ID, URL: url, Description: description, Visibility: normalizeRecordVisibility(visibility)}
-	if err := s.store.CreatePhoto(ctx, photo); err != nil {
-		return nil, fmt.Errorf("create photo: %w", err)
+	if len(photos) == 0 {
+		return nil, ErrAlbumRequiresPhotos
 	}
-	return photo, nil
+	album := &models.Album{
+		GroupID:     groupID,
+		CreatorID:   user.ID,
+		Title:       title,
+		Description: description,
+		Visibility:  normalizeRecordVisibility(visibility),
+		Photos:      buildAlbumPhotos(groupID, user.ID, photos),
+	}
+	if err := s.store.CreateAlbum(ctx, album); err != nil {
+		return nil, fmt.Errorf("create album: %w", err)
+	}
+	return album, nil
 }
 
-func (s *RecordService) UpdatePhoto(ctx context.Context, userID, photoID uint, url, description, visibility string) (*models.Photo, error) {
+func (s *RecordService) UpdateAlbum(ctx context.Context, userID, albumID uint, title, description, visibility string, photos []AlbumPhotoInput) (*models.Album, error) {
 	_, groupID, err := s.currentGroupUser(ctx, userID)
 	if err != nil {
 		return nil, err
 	}
-	photo, err := s.store.GetPhotoByID(ctx, photoID)
+	if len(photos) == 0 {
+		return nil, ErrAlbumRequiresPhotos
+	}
+	album, err := s.store.GetAlbumByID(ctx, albumID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, ErrPhotoNotFound
+			return nil, ErrAlbumNotFound
 		}
-		return nil, fmt.Errorf("get photo: %w", err)
+		return nil, fmt.Errorf("get album: %w", err)
 	}
-	if photo.GroupID != groupID {
+	if album.GroupID != groupID {
 		return nil, ErrForbidden
 	}
-	if photo.UploaderID != userID {
+	if album.CreatorID != userID {
 		return nil, ErrForbidden
 	}
-	photo.URL = url
-	photo.Description = description
-	photo.Visibility = normalizeRecordVisibility(visibility)
-	if err := s.store.SavePhoto(ctx, photo); err != nil {
-		return nil, fmt.Errorf("update photo: %w", err)
+	album.Title = title
+	album.Description = description
+	album.Visibility = normalizeRecordVisibility(visibility)
+	if err := s.store.SaveAlbum(ctx, album); err != nil {
+		return nil, fmt.Errorf("update album: %w", err)
 	}
-	return photo, nil
+	if err := s.store.ReplaceAlbumPhotos(ctx, album.ID, buildAlbumPhotos(groupID, userID, photos)); err != nil {
+		return nil, fmt.Errorf("replace album photos: %w", err)
+	}
+	updated, err := s.store.GetAlbumByID(ctx, album.ID)
+	if err != nil {
+		return nil, fmt.Errorf("reload album: %w", err)
+	}
+	return updated, nil
 }
 
-func (s *RecordService) ListPhotos(ctx context.Context, userID uint, pagination Pagination) (*PaginatedResult[models.Photo], error) {
+func (s *RecordService) ListAlbums(ctx context.Context, userID uint, pagination Pagination) (*PaginatedResult[models.Album], error) {
 	user, groupID, err := s.currentGroupUser(ctx, userID)
 	if err != nil {
 		return nil, err
 	}
-	photos, total, err := s.store.ListPhotosByGroup(ctx, groupID, user.ID, pagination.Offset(), pagination.PageSize)
+	albums, total, err := s.store.ListAlbumsByGroup(ctx, groupID, user.ID, pagination.Offset(), pagination.PageSize)
 	if err != nil {
-		return nil, fmt.Errorf("list photos: %w", err)
+		return nil, fmt.Errorf("list albums: %w", err)
 	}
-	result := NewPaginatedResult(photos, pagination, int(total))
+	result := NewPaginatedResult(albums, pagination, int(total))
 	return &result, nil
 }
 
-func (s *RecordService) DeletePhoto(ctx context.Context, userID, photoID uint) error {
+func (s *RecordService) DeleteAlbum(ctx context.Context, userID, albumID uint) error {
 	_, groupID, err := s.currentGroupUser(ctx, userID)
 	if err != nil {
 		return err
 	}
-	photo, err := s.store.GetPhotoByID(ctx, photoID)
+	album, err := s.store.GetAlbumByID(ctx, albumID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return ErrPhotoNotFound
+			return ErrAlbumNotFound
 		}
-		return fmt.Errorf("get photo: %w", err)
+		return fmt.Errorf("get album: %w", err)
 	}
-	if photo.GroupID != groupID {
+	if album.GroupID != groupID {
 		return ErrForbidden
 	}
-	if photo.UploaderID != userID {
+	if album.CreatorID != userID {
 		return ErrForbidden
 	}
-	if err := s.store.DeletePhoto(ctx, photo.ID); err != nil {
-		return fmt.Errorf("delete photo: %w", err)
+	if err := s.store.DeleteAlbum(ctx, album.ID); err != nil {
+		return fmt.Errorf("delete album: %w", err)
 	}
 	return nil
 }
@@ -324,6 +348,18 @@ func normalizeRecordVisibility(visibility string) string {
 		return recordVisibilityPublic
 	}
 	return normalized
+}
+
+func buildAlbumPhotos(groupID uint, uploaderID uint, inputs []AlbumPhotoInput) []models.Photo {
+	photos := make([]models.Photo, 0, len(inputs))
+	for _, input := range inputs {
+		photos = append(photos, models.Photo{
+			GroupID:    groupID,
+			UploaderID: uploaderID,
+			URL:        input.URL,
+		})
+	}
+	return photos
 }
 
 func isEditableByUser(ownerID uint, userID uint) bool {

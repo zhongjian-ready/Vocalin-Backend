@@ -488,14 +488,26 @@ func visibilityScopeQuery(db *gorm.DB, viewerColumn string, viewerID uint) *gorm
 	return db.Where("visibility = ? OR "+viewerColumn+" = ?", "public", viewerID)
 }
 
-func (s *Store) GetLatestVisiblePhotoByGroup(ctx context.Context, groupID uint, viewerID uint) (*models.Photo, error) {
-	var photo models.Photo
+func preloadAlbumRelations(db *gorm.DB) *gorm.DB {
+	return db.
+		Preload("Photos", func(tx *gorm.DB) *gorm.DB {
+			return tx.Order("created_at asc, id asc")
+		}).
+		Preload("Comments", func(tx *gorm.DB) *gorm.DB {
+			return tx.Order("created_at asc, id asc")
+		}).
+		Preload("Comments.User").
+		Preload("Likes")
+}
+
+func (s *Store) GetLatestVisibleAlbumByGroup(ctx context.Context, groupID uint, viewerID uint) (*models.Album, error) {
+	var album models.Album
 	query := s.db.WithContext(ctx).Where("group_id = ?", groupID)
-	query = visibilityScopeQuery(query, "uploader_id", viewerID)
-	if err := query.Order("created_at desc").First(&photo).Error; err != nil {
+	query = visibilityScopeQuery(query, "creator_id", viewerID)
+	if err := preloadAlbumRelations(query).Order("created_at desc").First(&album).Error; err != nil {
 		return nil, err
 	}
-	return &photo, nil
+	return &album, nil
 }
 
 func (s *Store) GetLatestVisibleNoteByGroup(ctx context.Context, groupID uint, viewerID uint, now time.Time) (*models.Note, error) {
@@ -525,40 +537,86 @@ func (s *Store) ListAnniversariesByGroup(ctx context.Context, groupID uint, offs
 	return anniversaries, total, nil
 }
 
-func (s *Store) CreatePhoto(ctx context.Context, photo *models.Photo) error {
-	return s.db.WithContext(ctx).Create(photo).Error
+func (s *Store) CreateAlbum(ctx context.Context, album *models.Album) error {
+	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		photos := album.Photos
+		album.Photos = nil
+		if err := tx.Create(album).Error; err != nil {
+			return err
+		}
+		for index := range photos {
+			photos[index].AlbumID = album.ID
+		}
+		if len(photos) > 0 {
+			if err := tx.Create(&photos).Error; err != nil {
+				return err
+			}
+		}
+		album.Photos = photos
+		return nil
+	})
 }
 
-func (s *Store) GetPhotoByID(ctx context.Context, id uint) (*models.Photo, error) {
-	var photo models.Photo
-	if err := s.db.WithContext(ctx).First(&photo, id).Error; err != nil {
+func (s *Store) GetAlbumByID(ctx context.Context, id uint) (*models.Album, error) {
+	var album models.Album
+	if err := preloadAlbumRelations(s.db.WithContext(ctx)).First(&album, id).Error; err != nil {
 		return nil, err
 	}
-	return &photo, nil
+	return &album, nil
 }
 
-func (s *Store) SavePhoto(ctx context.Context, photo *models.Photo) error {
-	return s.db.WithContext(ctx).Save(photo).Error
+func (s *Store) SaveAlbum(ctx context.Context, album *models.Album) error {
+	return s.db.WithContext(ctx).Model(&models.Album{}).Where("id = ?", album.ID).Updates(map[string]any{
+		"title":       album.Title,
+		"description": album.Description,
+		"visibility":  album.Visibility,
+	}).Error
 }
 
-func (s *Store) DeletePhoto(ctx context.Context, id uint) error {
-	return s.db.WithContext(ctx).Delete(&models.Photo{}, id).Error
+func (s *Store) ReplaceAlbumPhotos(ctx context.Context, albumID uint, photos []models.Photo) error {
+	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("album_id = ?", albumID).Delete(&models.Photo{}).Error; err != nil {
+			return err
+		}
+		for index := range photos {
+			photos[index].AlbumID = albumID
+		}
+		if len(photos) == 0 {
+			return nil
+		}
+		return tx.Create(&photos).Error
+	})
 }
 
-func (s *Store) ListPhotosByGroup(ctx context.Context, groupID uint, viewerID uint, offset int, limit int) ([]models.Photo, int64, error) {
-	var photos []models.Photo
-	query := s.db.WithContext(ctx).Model(&models.Photo{}).Where("group_id = ?", groupID)
-	query = visibilityScopeQuery(query, "uploader_id", viewerID)
+func (s *Store) DeleteAlbum(ctx context.Context, id uint) error {
+	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("album_id = ?", id).Delete(&models.Comment{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("album_id = ?", id).Delete(&models.Like{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("album_id = ?", id).Delete(&models.Photo{}).Error; err != nil {
+			return err
+		}
+		return tx.Delete(&models.Album{}, id).Error
+	})
+}
+
+func (s *Store) ListAlbumsByGroup(ctx context.Context, groupID uint, viewerID uint, offset int, limit int) ([]models.Album, int64, error) {
+	var albums []models.Album
+	query := s.db.WithContext(ctx).Model(&models.Album{}).Where("group_id = ?", groupID)
+	query = visibilityScopeQuery(query, "creator_id", viewerID)
 	var total int64
 	if err := query.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
 	listQuery := s.db.WithContext(ctx).Where("group_id = ?", groupID)
-	listQuery = visibilityScopeQuery(listQuery, "uploader_id", viewerID)
-	if err := listQuery.Preload("Comments").Preload("Likes").Order("created_at desc").Offset(offset).Limit(limit).Find(&photos).Error; err != nil {
+	listQuery = visibilityScopeQuery(listQuery, "creator_id", viewerID)
+	if err := preloadAlbumRelations(listQuery).Order("created_at desc").Offset(offset).Limit(limit).Find(&albums).Error; err != nil {
 		return nil, 0, err
 	}
-	return photos, total, nil
+	return albums, total, nil
 }
 
 func (s *Store) CreateNote(ctx context.Context, note *models.Note) error {

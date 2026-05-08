@@ -8,6 +8,64 @@ definitions:
         description: Valid is true if Time is not NULL
         type: boolean
     type: object
+  internal_handlers.AlbumPhotoRequest:
+    properties:
+      url:
+        maxLength: 1024
+        type: string
+    required:
+    - url
+    type: object
+  internal_handlers.AlbumPhotoResponse:
+    properties:
+      album_id:
+        type: integer
+      createdAt:
+        type: string
+      deletedAt:
+        $ref: '#/definitions/gorm.DeletedAt'
+      group_id:
+        type: integer
+      id:
+        type: integer
+      updatedAt:
+        type: string
+      uploader_id:
+        type: integer
+      url:
+        type: string
+    type: object
+  internal_handlers.AlbumResponse:
+    properties:
+      comments:
+        items:
+          $ref: '#/definitions/vocalin-backend_internal_models.Comment'
+        type: array
+      createdAt:
+        type: string
+      creator_id:
+        type: integer
+      deletedAt:
+        $ref: '#/definitions/gorm.DeletedAt'
+      description:
+        type: string
+      group_id:
+        type: integer
+      id:
+        type: integer
+      likes:
+        type: integer
+      photos:
+        items:
+          $ref: '#/definitions/internal_handlers.AlbumPhotoResponse'
+        type: array
+      title:
+        type: string
+      updatedAt:
+        type: string
+      visibility:
+        type: string
+    type: object
   internal_handlers.AnniversaryResponse:
     properties:
       createdAt:
@@ -26,6 +84,28 @@ definitions:
         type: string
       user_id:
         type: integer
+    type: object
+  internal_handlers.CreateAlbumRequest:
+    properties:
+      description:
+        maxLength: 500
+        type: string
+      photos:
+        items:
+          $ref: '#/definitions/internal_handlers.AlbumPhotoRequest'
+        minItems: 1
+        type: array
+      title:
+        maxLength: 255
+        type: string
+      visibility:
+        enum:
+        - public
+        - private
+        type: string
+    required:
+    - photos
+    - title
     type: object
   internal_handlers.CreateAnniversaryRequest:
     properties:
@@ -68,22 +148,6 @@ definitions:
     required:
     - content
     - type
-    type: object
-  internal_handlers.CreatePhotoRequest:
-    properties:
-      description:
-        maxLength: 500
-        type: string
-      url:
-        maxLength: 1024
-        type: string
-      visibility:
-        enum:
-        - public
-        - private
-        type: string
-    required:
-    - url
     type: object
   internal_handlers.CreateWishlistRequest:
     properties:
@@ -297,35 +361,6 @@ definitions:
       visibility:
         type: string
     type: object
-  internal_handlers.PhotoResponse:
-    properties:
-      comments:
-        items:
-          $ref: '#/definitions/vocalin-backend_internal_models.Comment'
-        type: array
-      createdAt:
-        type: string
-      deletedAt:
-        $ref: '#/definitions/gorm.DeletedAt'
-      description:
-        type: string
-      group_id:
-        type: integer
-      id:
-        type: integer
-      likes:
-        items:
-          $ref: '#/definitions/vocalin-backend_internal_models.Like'
-        type: array
-      updatedAt:
-        type: string
-      uploader_id:
-        type: integer
-      url:
-        type: string
-      visibility:
-        type: string
-    type: object
   internal_handlers.ProfileUserResponse:
     properties:
       avatar_url:
@@ -419,6 +454,28 @@ definitions:
     required:
     - target_user_id
     type: object
+  internal_handlers.UpdateAlbumRequest:
+    properties:
+      description:
+        maxLength: 500
+        type: string
+      photos:
+        items:
+          $ref: '#/definitions/internal_handlers.AlbumPhotoRequest'
+        minItems: 1
+        type: array
+      title:
+        maxLength: 255
+        type: string
+      visibility:
+        enum:
+        - public
+        - private
+        type: string
+    required:
+    - photos
+    - title
+    type: object
   internal_handlers.UpdateNoteRequest:
     properties:
       color:
@@ -439,22 +496,6 @@ definitions:
     required:
     - content
     - type
-    type: object
-  internal_handlers.UpdatePhotoRequest:
-    properties:
-      description:
-        maxLength: 500
-        type: string
-      url:
-        maxLength: 1024
-        type: string
-      visibility:
-        enum:
-        - public
-        - private
-        type: string
-    required:
-    - url
     type: object
   internal_handlers.UpdatePinnedMessageRequest:
     properties:
@@ -532,6 +573,8 @@ definitions:
     type: object
   vocalin-backend_internal_models.Comment:
     properties:
+      album_id:
+        type: integer
       content:
         type: string
       createdAt:
@@ -539,8 +582,6 @@ definitions:
       deletedAt:
         $ref: '#/definitions/gorm.DeletedAt'
       id:
-        type: integer
-      photo_id:
         type: integer
       updatedAt:
         type: string
@@ -583,21 +624,6 @@ definitions:
         type: string
       updatedAt:
         type: string
-    type: object
-  vocalin-backend_internal_models.Like:
-    properties:
-      createdAt:
-        type: string
-      deletedAt:
-        $ref: '#/definitions/gorm.DeletedAt'
-      id:
-        type: integer
-      photo_id:
-        type: integer
-      updatedAt:
-        type: string
-      user_id:
-        type: integer
     type: object
   vocalin-backend_internal_models.User:
     properties:
@@ -1335,6 +1361,117 @@ paths:
       summary: 更新个人资料
       tags:
       - Profile
+  /records/albums:
+    get:
+      parameters:
+      - description: 页码，从 1 开始
+        in: query
+        name: page
+        type: integer
+      - description: 每页条数，最大 100
+        in: query
+        name: page_size
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/vocalin-backend_internal_response.APIResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/internal_handlers.AlbumResponse'
+                  type: array
+                meta:
+                  $ref: '#/definitions/vocalin-backend_internal_response.PaginationMeta'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: 获取相册列表
+      tags:
+      - Records
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Create Album Request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_handlers.CreateAlbumRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/vocalin-backend_internal_response.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/internal_handlers.AlbumResponse'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: 创建相册
+      tags:
+      - Records
+  /records/albums/{id}:
+    delete:
+      parameters:
+      - description: Album ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/vocalin-backend_internal_response.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: 删除相册
+      tags:
+      - Records
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: Album ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Update Album Request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_handlers.UpdateAlbumRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/vocalin-backend_internal_response.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/internal_handlers.AlbumResponse'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: 编辑相册
+      tags:
+      - Records
   /records/notes:
     get:
       parameters:
@@ -1444,117 +1581,6 @@ paths:
       security:
       - BearerAuth: []
       summary: 编辑便签
-      tags:
-      - Records
-  /records/photos:
-    get:
-      parameters:
-      - description: 页码，从 1 开始
-        in: query
-        name: page
-        type: integer
-      - description: 每页条数，最大 100
-        in: query
-        name: page_size
-        type: integer
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            allOf:
-            - $ref: '#/definitions/vocalin-backend_internal_response.APIResponse'
-            - properties:
-                data:
-                  items:
-                    $ref: '#/definitions/internal_handlers.PhotoResponse'
-                  type: array
-                meta:
-                  $ref: '#/definitions/vocalin-backend_internal_response.PaginationMeta'
-              type: object
-      security:
-      - BearerAuth: []
-      summary: 获取照片列表
-      tags:
-      - Records
-    post:
-      consumes:
-      - application/json
-      parameters:
-      - description: Create Photo Request
-        in: body
-        name: request
-        required: true
-        schema:
-          $ref: '#/definitions/internal_handlers.CreatePhotoRequest'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            allOf:
-            - $ref: '#/definitions/vocalin-backend_internal_response.APIResponse'
-            - properties:
-                data:
-                  $ref: '#/definitions/internal_handlers.PhotoResponse'
-              type: object
-      security:
-      - BearerAuth: []
-      summary: 上传照片记录
-      tags:
-      - Records
-  /records/photos/{id}:
-    delete:
-      parameters:
-      - description: Photo ID
-        in: path
-        name: id
-        required: true
-        type: integer
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/vocalin-backend_internal_response.APIResponse'
-      security:
-      - BearerAuth: []
-      summary: 删除照片记录
-      tags:
-      - Records
-    put:
-      consumes:
-      - application/json
-      parameters:
-      - description: Photo ID
-        in: path
-        name: id
-        required: true
-        type: integer
-      - description: Update Photo Request
-        in: body
-        name: request
-        required: true
-        schema:
-          $ref: '#/definitions/internal_handlers.UpdatePhotoRequest'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            allOf:
-            - $ref: '#/definitions/vocalin-backend_internal_response.APIResponse'
-            - properties:
-                data:
-                  $ref: '#/definitions/internal_handlers.PhotoResponse'
-              type: object
-      security:
-      - BearerAuth: []
-      summary: 编辑照片记录
       tags:
       - Records
   /records/wishlist:

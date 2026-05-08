@@ -8,18 +8,27 @@ import (
 
 type Photo struct {
 	gorm.Model
+	AlbumID    uint   `gorm:"index" json:"album_id"`
+	GroupID    uint   `gorm:"index" json:"group_id"`
+	UploaderID uint   `gorm:"column:uploader_id" json:"uploader_id"`
+	URL        string `json:"url"`
+}
+
+type Album struct {
+	gorm.Model
 	GroupID     uint      `gorm:"index" json:"group_id"`
-	UploaderID  uint      `json:"uploader_id"`
-	URL         string    `json:"url"`
+	CreatorID   uint      `gorm:"column:creator_id" json:"creator_id"`
+	Title       string    `json:"title"`
 	Description string    `json:"description"`
 	Visibility  string    `gorm:"size:20;default:public" json:"visibility"`
-	Comments    []Comment `gorm:"foreignKey:PhotoID" json:"comments"`
-	Likes       []Like    `gorm:"foreignKey:PhotoID" json:"likes"`
+	Photos      []Photo   `gorm:"foreignKey:AlbumID" json:"photos"`
+	Comments    []Comment `gorm:"foreignKey:AlbumID" json:"comments"`
+	Likes       []Like    `gorm:"foreignKey:AlbumID" json:"likes"`
 }
 
 type Comment struct {
 	gorm.Model
-	PhotoID uint   `gorm:"index" json:"photo_id"`
+	AlbumID uint   `gorm:"column:album_id;index" json:"album_id"`
 	UserID  uint   `json:"user_id"`
 	Content string `json:"content"`
 	User    User   `gorm:"foreignKey:UserID" json:"user"`
@@ -27,7 +36,7 @@ type Comment struct {
 
 type Like struct {
 	gorm.Model
-	PhotoID uint `gorm:"index" json:"photo_id"`
+	AlbumID uint `gorm:"column:album_id;index" json:"album_id"`
 	UserID  uint `json:"user_id"`
 }
 

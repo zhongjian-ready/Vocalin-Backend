@@ -81,28 +81,38 @@ func main() {
 	}
 	application.Logger.Info("用户已加入空间")
 
-	// 4. Create Records (Photos)
-	photos := []models.Photo{
+	// 4. Create Records (Albums)
+	albums := []models.Album{
 		{
 			GroupID:     group.ID,
-			UploaderID:  user1.ID,
-			URL:         "https://images.unsplash.com/photo-1516589178581-a7870abd3645?q=80&w=600&auto=format&fit=crop",
+			CreatorID:   user1.ID,
+			Title:       "Trip Memories",
 			Description: "Our first trip together",
+			Photos: []models.Photo{{
+				GroupID:    group.ID,
+				UploaderID: user1.ID,
+				URL:        "https://images.unsplash.com/photo-1516589178581-a7870abd3645?q=80&w=600&auto=format&fit=crop",
+			}},
 		},
 		{
 			GroupID:     group.ID,
-			UploaderID:  user2.ID,
-			URL:         "https://images.unsplash.com/photo-1529333166437-7750a6dd5a70?q=80&w=600&auto=format&fit=crop",
+			CreatorID:   user2.ID,
+			Title:       "Weekend Moments",
 			Description: "Weekend vibes",
+			Photos: []models.Photo{{
+				GroupID:    group.ID,
+				UploaderID: user2.ID,
+				URL:        "https://images.unsplash.com/photo-1529333166437-7750a6dd5a70?q=80&w=600&auto=format&fit=crop",
+			}},
 		},
 	}
 
-	for _, p := range photos {
-		if err := store.CreatePhoto(ctx, &p); err != nil {
-			application.Logger.Fatal("写入照片失败", zap.Error(err))
+	for _, album := range albums {
+		if err := store.CreateAlbum(ctx, &album); err != nil {
+			application.Logger.Fatal("写入相册失败", zap.Error(err))
 		}
 	}
-	application.Logger.Info("照片数据写入完成")
+	application.Logger.Info("相册数据写入完成")
 
 	// 5. Create Notes
 	notes := []models.Note{

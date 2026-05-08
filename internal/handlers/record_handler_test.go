@@ -167,6 +167,62 @@ func TestRecordHandlerDeleteNote(t *testing.T) {
 	}
 }
 
+func TestRecordHandlerCreateAlbum(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	handler, store := newTestRecordHandler(t)
+	ctx := context.Background()
+	user := createRecordTestUser(t, store, ctx, "record-handler-album-user", "record-handler-album-user", "13800138209")
+	createRecordTestGroup(t, store, ctx, user, "record-handler-album-group", "ALBUM1")
+
+	body := bytes.NewBufferString(`{"title":"trip","description":"memories","photos":[{"url":"https://example.com/1.jpg"}]}`)
+	recorder := httptest.NewRecorder()
+	ginContext, _ := gin.CreateTestContext(recorder)
+	ginContext.Request = httptest.NewRequest(http.MethodPost, "/api/records/albums", body)
+	ginContext.Request.Header.Set("Content-Type", "application/json")
+	ginContext.Set(userIDContextKey, user.ID)
+
+	handler.CreateAlbum(ginContext)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d, body=%s", http.StatusOK, recorder.Code, recorder.Body.String())
+	}
+
+	var resp response.APIResponse
+	if err := json.Unmarshal(recorder.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal response: %v", err)
+	}
+	if resp.Message != "创建相册成功" {
+		t.Fatalf("expected create album message, got %q", resp.Message)
+	}
+
+	data, ok := resp.Data.(map[string]any)
+	if !ok {
+		t.Fatalf("expected object data, got %#v", resp.Data)
+	}
+	likes, ok := data["likes"].(float64)
+	if !ok {
+		t.Fatalf("expected likes to be a number, got %#v", data["likes"])
+	}
+	if likes != 0 {
+		t.Fatalf("expected likes count 0, got %v", likes)
+	}
+	photos, ok := data["photos"].([]any)
+	if !ok || len(photos) != 1 {
+		t.Fatalf("expected one photo in album response, got %#v", data["photos"])
+	}
+	photoData, ok := photos[0].(map[string]any)
+	if !ok {
+		t.Fatalf("expected photo object, got %#v", photos[0])
+	}
+	if _, exists := photoData["description"]; exists {
+		t.Fatalf("expected photo description to be omitted, got %#v", photoData)
+	}
+	if _, exists := photoData["source"]; exists {
+		t.Fatalf("expected photo source to be omitted, got %#v", photoData)
+	}
+}
+
 func newTestRecordHandler(t *testing.T) (*RecordHandler, *repository.Store) {
 	t.Helper()
 	if err := appvalidator.Register(); err != nil {

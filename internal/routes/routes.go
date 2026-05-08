@@ -70,10 +70,10 @@ func SetupRouter(application *app.App) (*gin.Engine, error) {
 		api.GET("/home/messages", homeHandler.ListMessages)
 
 		// Records
-		api.POST("/records/photos", recordHandler.CreatePhoto)
-		api.PUT("/records/photos/:id", recordHandler.UpdatePhoto)
-		api.DELETE("/records/photos/:id", recordHandler.DeletePhoto)
-		api.GET("/records/photos", recordHandler.GetPhotos)
+		api.POST("/records/albums", recordHandler.CreateAlbum)
+		api.PUT("/records/albums/:id", recordHandler.UpdateAlbum)
+		api.DELETE("/records/albums/:id", recordHandler.DeleteAlbum)
+		api.GET("/records/albums", recordHandler.GetAlbums)
 		api.POST("/records/notes", recordHandler.CreateNote)
 		api.PUT("/records/notes/:id", recordHandler.UpdateNote)
 		api.DELETE("/records/notes/:id", recordHandler.DeleteNote)

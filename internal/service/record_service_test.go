@@ -11,7 +11,7 @@ import (
 	"gorm.io/gorm"
 )
 
-func TestRecordServiceListPhotosWithPagination(t *testing.T) {
+func TestRecordServiceListAlbumsWithPagination(t *testing.T) {
 	store := newTestStore(t)
 	svc := NewRecordService(store, newTestLogger())
 	ctx := context.Background()
@@ -26,15 +26,26 @@ func TestRecordServiceListPhotosWithPagination(t *testing.T) {
 	}
 
 	for index := 0; index < 3; index++ {
-		photo := &models.Photo{GroupID: group.ID, UploaderID: user.ID, URL: "https://example.com/photo.jpg", Description: "photo"}
-		if err := store.CreatePhoto(ctx, photo); err != nil {
-			t.Fatalf("create photo: %v", err)
+		album := &models.Album{
+			GroupID:     group.ID,
+			CreatorID:   user.ID,
+			Title:       "album",
+			Description: "album",
+			Visibility:  "public",
+			Photos: []models.Photo{{
+				GroupID:    group.ID,
+				UploaderID: user.ID,
+				URL:        "https://example.com/photo.jpg",
+			}},
+		}
+		if err := store.CreateAlbum(ctx, album); err != nil {
+			t.Fatalf("create album: %v", err)
 		}
 	}
 
-	result, err := svc.ListPhotos(ctx, user.ID, NewPagination(1, 2))
+	result, err := svc.ListAlbums(ctx, user.ID, NewPagination(1, 2))
 	if err != nil {
-		t.Fatalf("list photos: %v", err)
+		t.Fatalf("list albums: %v", err)
 	}
 	if len(result.Items) != 2 {
 		t.Fatalf("expected 2 items on first page, got %d", len(result.Items))
@@ -143,7 +154,7 @@ func TestRecordServiceCreateWishlistPersistsPriority(t *testing.T) {
 	}
 }
 
-func TestRecordServicePhotoVisibilityCreateUpdateAndList(t *testing.T) {
+func TestRecordServiceAlbumVisibilityCreateUpdateAndList(t *testing.T) {
 	store := newTestStore(t)
 	svc := NewRecordService(store, newTestLogger())
 	ctx := context.Background()
@@ -164,35 +175,42 @@ func TestRecordServicePhotoVisibilityCreateUpdateAndList(t *testing.T) {
 		t.Fatalf("add viewer to group: %v", err)
 	}
 
-	photo, err := svc.CreatePhoto(ctx, owner.ID, "https://example.com/private-photo.jpg", "secret", "private")
+	album, err := svc.CreateAlbum(ctx, owner.ID, "travel", "secret", "private", []AlbumPhotoInput{{
+		URL: "https://example.com/private-photo.jpg",
+	}})
 	if err != nil {
-		t.Fatalf("create photo: %v", err)
+		t.Fatalf("create album: %v", err)
 	}
-	if photo.Visibility != "private" {
-		t.Fatalf("expected private visibility, got %q", photo.Visibility)
+	if album.Visibility != "private" {
+		t.Fatalf("expected private visibility, got %q", album.Visibility)
+	}
+	if len(album.Photos) != 1 {
+		t.Fatalf("expected one camera photo in album, got %#v", album.Photos)
 	}
 
-	result, err := svc.ListPhotos(ctx, viewer.ID, NewPagination(1, 10))
+	result, err := svc.ListAlbums(ctx, viewer.ID, NewPagination(1, 10))
 	if err != nil {
-		t.Fatalf("list photos for viewer: %v", err)
+		t.Fatalf("list albums for viewer: %v", err)
 	}
 	if len(result.Items) != 0 {
-		t.Fatalf("expected private photo to be hidden, got %d items", len(result.Items))
+		t.Fatalf("expected private album to be hidden, got %d items", len(result.Items))
 	}
-	updated, err := svc.UpdatePhoto(ctx, owner.ID, photo.ID, "https://example.com/public-photo.jpg", "shared", "public")
+	updated, err := svc.UpdateAlbum(ctx, owner.ID, album.ID, "travel shared", "shared", "public", []AlbumPhotoInput{{
+		URL: "https://example.com/public-photo.jpg",
+	}})
 	if err != nil {
-		t.Fatalf("update photo: %v", err)
+		t.Fatalf("update album: %v", err)
 	}
 	if updated.Visibility != "public" {
 		t.Fatalf("expected public visibility after update, got %q", updated.Visibility)
 	}
 
-	result, err = svc.ListPhotos(ctx, viewer.ID, NewPagination(1, 10))
+	result, err = svc.ListAlbums(ctx, viewer.ID, NewPagination(1, 10))
 	if err != nil {
-		t.Fatalf("list photos after update: %v", err)
+		t.Fatalf("list albums after update: %v", err)
 	}
 	if len(result.Items) != 1 {
-		t.Fatalf("expected 1 visible photo after update, got %d", len(result.Items))
+		t.Fatalf("expected 1 visible album after update, got %d", len(result.Items))
 	}
 }
 
@@ -335,7 +353,7 @@ func TestRecordServiceWishlistVisibilityCreateUpdateAndList(t *testing.T) {
 	}
 }
 
-func TestRecordServiceDeletePhoto(t *testing.T) {
+func TestRecordServiceDeleteAlbum(t *testing.T) {
 	store := newTestStore(t)
 	svc := NewRecordService(store, newTestLogger())
 	ctx := context.Background()
@@ -348,18 +366,28 @@ func TestRecordServiceDeletePhoto(t *testing.T) {
 	if err := store.CreateGroupWithCreator(ctx, user, group); err != nil {
 		t.Fatalf("create group: %v", err)
 	}
-	photo := &models.Photo{GroupID: group.ID, UploaderID: user.ID, URL: "https://example.com/delete-photo.jpg", Description: "photo"}
-	if err := store.CreatePhoto(ctx, photo); err != nil {
-		t.Fatalf("create photo: %v", err)
+	album := &models.Album{
+		GroupID:    group.ID,
+		CreatorID:  user.ID,
+		Title:      "delete album",
+		Visibility: "public",
+		Photos: []models.Photo{{
+			GroupID:    group.ID,
+			UploaderID: user.ID,
+			URL:        "https://example.com/delete-photo.jpg",
+		}},
+	}
+	if err := store.CreateAlbum(ctx, album); err != nil {
+		t.Fatalf("create album: %v", err)
 	}
 
-	if err := svc.DeletePhoto(ctx, user.ID, photo.ID); err != nil {
-		t.Fatalf("delete photo: %v", err)
+	if err := svc.DeleteAlbum(ctx, user.ID, album.ID); err != nil {
+		t.Fatalf("delete album: %v", err)
 	}
 
-	_, err := store.GetPhotoByID(ctx, photo.ID)
+	_, err := store.GetAlbumByID(ctx, album.ID)
 	if !errors.Is(err, gorm.ErrRecordNotFound) {
-		t.Fatalf("expected deleted photo to be missing, got %v", err)
+		t.Fatalf("expected deleted album to be missing, got %v", err)
 	}
 }
 

@@ -8,20 +8,45 @@ import (
 	"vocalin-backend/internal/service"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 type RecordHandler struct {
 	recordService *service.RecordService
 }
 
-type PhotoResponse = models.Photo
+type AlbumResponse struct {
+	gorm.Model
+	GroupID     uint                 `json:"group_id"`
+	CreatorID   uint                 `json:"creator_id"`
+	Title       string               `json:"title"`
+	Description string               `json:"description"`
+	Visibility  string               `json:"visibility"`
+	Photos      []AlbumPhotoResponse `json:"photos"`
+	Comments    []models.Comment     `json:"comments"`
+	Likes       int                  `json:"likes"`
+}
+
+type AlbumPhotoResponse struct {
+	gorm.Model
+	AlbumID    uint   `json:"album_id"`
+	GroupID    uint   `json:"group_id"`
+	UploaderID uint   `json:"uploader_id"`
+	URL        string `json:"url"`
+}
+
 type NoteResponse = models.Note
 type WishlistResponse = models.Wishlist
 
-type CreatePhotoRequest struct {
-	URL         string `json:"url" binding:"required,url,max=1024"`
-	Description string `json:"description" binding:"max=500"`
-	Visibility  string `json:"visibility" binding:"omitempty,oneof=public private"`
+type AlbumPhotoRequest struct {
+	URL string `json:"url" binding:"required,url,max=1024"`
+}
+
+type CreateAlbumRequest struct {
+	Title       string              `json:"title" binding:"required,max=255"`
+	Description string              `json:"description" binding:"max=500"`
+	Visibility  string              `json:"visibility" binding:"omitempty,oneof=public private"`
+	Photos      []AlbumPhotoRequest `json:"photos" binding:"required,min=1,dive"`
 }
 
 type CreateNoteRequest struct {
@@ -38,7 +63,7 @@ type CreateWishlistRequest struct {
 	Visibility string `json:"visibility" binding:"omitempty,oneof=public private"`
 }
 
-type UpdatePhotoRequest = CreatePhotoRequest
+type UpdateAlbumRequest = CreateAlbumRequest
 
 type UpdateNoteRequest = CreateNoteRequest
 
@@ -48,104 +73,104 @@ func NewRecordHandler(recordService *service.RecordService) *RecordHandler {
 	return &RecordHandler{recordService: recordService}
 }
 
-// CreatePhoto godoc
-// @Summary 上传照片记录
+// CreateAlbum godoc
+// @Summary 创建相册
 // @Tags Records
 // @Accept json
 // @Produce json
-// @Param request body CreatePhotoRequest true "Create Photo Request"
+// @Param request body CreateAlbumRequest true "Create Album Request"
 // @Security BearerAuth
-// @Success 200 {object} response.APIResponse{data=PhotoResponse}
-// @Router /records/photos [post]
-func (h *RecordHandler) CreatePhoto(c *gin.Context) {
-	var req CreatePhotoRequest
+// @Success 200 {object} response.APIResponse{data=AlbumResponse}
+// @Router /records/albums [post]
+func (h *RecordHandler) CreateAlbum(c *gin.Context) {
+	var req CreateAlbumRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		writeBindError(c, err)
 		return
 	}
 
-	photo, err := h.recordService.CreatePhoto(c.Request.Context(), currentUserID(c), req.URL, req.Description, req.Visibility)
+	album, err := h.recordService.CreateAlbum(c.Request.Context(), currentUserID(c), req.Title, req.Description, req.Visibility, toAlbumPhotoInputs(req.Photos))
 	if err != nil {
 		writeServiceError(c, err)
 		return
 	}
 
-	response.Success(c, "创建照片成功", photo)
+	response.Success(c, "创建相册成功", toAlbumResponse(album))
 }
 
-// UpdatePhoto godoc
-// @Summary 编辑照片记录
+// UpdateAlbum godoc
+// @Summary 编辑相册
 // @Tags Records
 // @Accept json
 // @Produce json
-// @Param id path int true "Photo ID"
-// @Param request body UpdatePhotoRequest true "Update Photo Request"
+// @Param id path int true "Album ID"
+// @Param request body UpdateAlbumRequest true "Update Album Request"
 // @Security BearerAuth
-// @Success 200 {object} response.APIResponse{data=PhotoResponse}
-// @Router /records/photos/{id} [put]
-func (h *RecordHandler) UpdatePhoto(c *gin.Context) {
-	photoID, err := strconv.ParseUint(c.Param("id"), 10, 64)
+// @Success 200 {object} response.APIResponse{data=AlbumResponse}
+// @Router /records/albums/{id} [put]
+func (h *RecordHandler) UpdateAlbum(c *gin.Context) {
+	albumID, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil {
-		response.Error(c, 400, "VALIDATION_ERROR", "无效的照片 ID")
+		response.Error(c, 400, "VALIDATION_ERROR", "无效的相册 ID")
 		return
 	}
 
-	var req UpdatePhotoRequest
+	var req UpdateAlbumRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		writeBindError(c, err)
 		return
 	}
 
-	photo, err := h.recordService.UpdatePhoto(c.Request.Context(), currentUserID(c), uint(photoID), req.URL, req.Description, req.Visibility)
+	album, err := h.recordService.UpdateAlbum(c.Request.Context(), currentUserID(c), uint(albumID), req.Title, req.Description, req.Visibility, toAlbumPhotoInputs(req.Photos))
 	if err != nil {
 		writeServiceError(c, err)
 		return
 	}
 
-	response.Success(c, "更新照片成功", photo)
+	response.Success(c, "更新相册成功", toAlbumResponse(album))
 }
 
-// GetPhotos godoc
-// @Summary 获取照片列表
+// GetAlbums godoc
+// @Summary 获取相册列表
 // @Tags Records
 // @Produce json
 // @Security BearerAuth
 // @Param page query int false "页码，从 1 开始"
 // @Param page_size query int false "每页条数，最大 100"
-// @Success 200 {object} response.APIResponse{data=[]PhotoResponse,meta=response.PaginationMeta}
-// @Router /records/photos [get]
-func (h *RecordHandler) GetPhotos(c *gin.Context) {
+// @Success 200 {object} response.APIResponse{data=[]AlbumResponse,meta=response.PaginationMeta}
+// @Router /records/albums [get]
+func (h *RecordHandler) GetAlbums(c *gin.Context) {
 	page, pageSize := parsePagination(c)
-	photos, err := h.recordService.ListPhotos(c.Request.Context(), currentUserID(c), service.NewPagination(page, pageSize))
+	albums, err := h.recordService.ListAlbums(c.Request.Context(), currentUserID(c), service.NewPagination(page, pageSize))
 	if err != nil {
 		writeServiceError(c, err)
 		return
 	}
 
-	response.JSON(c, 200, "SUCCESS", "获取照片列表成功", photos.Items, response.NewPaginationMeta(photos.Page, photos.PageSize, photos.Total))
+	response.JSON(c, 200, "SUCCESS", "获取相册列表成功", toAlbumResponses(albums.Items), response.NewPaginationMeta(albums.Page, albums.PageSize, albums.Total))
 }
 
-// DeletePhoto godoc
-// @Summary 删除照片记录
+// DeleteAlbum godoc
+// @Summary 删除相册
 // @Tags Records
 // @Produce json
-// @Param id path int true "Photo ID"
+// @Param id path int true "Album ID"
 // @Security BearerAuth
 // @Success 200 {object} response.APIResponse
-// @Router /records/photos/{id} [delete]
-func (h *RecordHandler) DeletePhoto(c *gin.Context) {
-	photoID, err := strconv.ParseUint(c.Param("id"), 10, 64)
+// @Router /records/albums/{id} [delete]
+func (h *RecordHandler) DeleteAlbum(c *gin.Context) {
+	albumID, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil {
-		response.Error(c, 400, "VALIDATION_ERROR", "无效的照片 ID")
+		response.Error(c, 400, "VALIDATION_ERROR", "无效的相册 ID")
 		return
 	}
 
-	if err := h.recordService.DeletePhoto(c.Request.Context(), currentUserID(c), uint(photoID)); err != nil {
+	if err := h.recordService.DeleteAlbum(c.Request.Context(), currentUserID(c), uint(albumID)); err != nil {
 		writeServiceError(c, err)
 		return
 	}
 
-	response.Success(c, "删除照片成功", nil)
+	response.Success(c, "删除相册成功", nil)
 }
 
 // CreateNote godoc
@@ -396,4 +421,60 @@ func (h *RecordHandler) updateWishlistCompletion(c *gin.Context, completed bool)
 	}
 
 	response.Success(c, message, item)
+}
+
+func toAlbumPhotoInputs(photos []AlbumPhotoRequest) []service.AlbumPhotoInput {
+	inputs := make([]service.AlbumPhotoInput, 0, len(photos))
+	for _, photo := range photos {
+		inputs = append(inputs, service.AlbumPhotoInput{
+			URL: photo.URL,
+		})
+	}
+	return inputs
+}
+
+func toAlbumResponses(albums []models.Album) []AlbumResponse {
+	items := make([]AlbumResponse, 0, len(albums))
+	for _, album := range albums {
+		items = append(items, toAlbumResponse(&album))
+	}
+	return items
+}
+
+func toAlbumResponse(album *models.Album) AlbumResponse {
+	photos := make([]AlbumPhotoResponse, 0, len(album.Photos))
+	for _, photo := range album.Photos {
+		photos = append(photos, AlbumPhotoResponse{
+			Model: gorm.Model{
+				ID:        photo.ID,
+				CreatedAt: photo.CreatedAt,
+				UpdatedAt: photo.UpdatedAt,
+				DeletedAt: photo.DeletedAt,
+			},
+			AlbumID:    photo.AlbumID,
+			GroupID:    photo.GroupID,
+			UploaderID: photo.UploaderID,
+			URL:        photo.URL,
+		})
+	}
+
+	comments := make([]models.Comment, len(album.Comments))
+	copy(comments, album.Comments)
+
+	return AlbumResponse{
+		Model: gorm.Model{
+			ID:        album.ID,
+			CreatedAt: album.CreatedAt,
+			UpdatedAt: album.UpdatedAt,
+			DeletedAt: album.DeletedAt,
+		},
+		GroupID:     album.GroupID,
+		CreatorID:   album.CreatorID,
+		Title:       album.Title,
+		Description: album.Description,
+		Visibility:  album.Visibility,
+		Photos:      photos,
+		Comments:    comments,
+		Likes:       len(album.Likes),
+	}
 }

@@ -45,15 +45,16 @@ type Store interface {
 	GetGroupWithMembers(ctx context.Context, groupID uint) (*models.Group, error)
 	UpdatePinnedMessage(ctx context.Context, groupID uint, authorID uint, content string) (*models.Group, error)
 	UpdateUserStatus(ctx context.Context, user *models.User, status string, updatedAt time.Time) error
-	GetLatestVisiblePhotoByGroup(ctx context.Context, groupID uint, viewerID uint) (*models.Photo, error)
+	GetLatestVisibleAlbumByGroup(ctx context.Context, groupID uint, viewerID uint) (*models.Album, error)
 	GetLatestVisibleNoteByGroup(ctx context.Context, groupID uint, viewerID uint, now time.Time) (*models.Note, error)
 	CreateAnniversary(ctx context.Context, anniversary *models.Anniversary) error
 	ListAnniversariesByGroup(ctx context.Context, groupID uint, offset int, limit int) ([]models.Anniversary, int64, error)
-	CreatePhoto(ctx context.Context, photo *models.Photo) error
-	GetPhotoByID(ctx context.Context, id uint) (*models.Photo, error)
-	SavePhoto(ctx context.Context, photo *models.Photo) error
-	DeletePhoto(ctx context.Context, id uint) error
-	ListPhotosByGroup(ctx context.Context, groupID uint, viewerID uint, offset int, limit int) ([]models.Photo, int64, error)
+	CreateAlbum(ctx context.Context, album *models.Album) error
+	GetAlbumByID(ctx context.Context, id uint) (*models.Album, error)
+	SaveAlbum(ctx context.Context, album *models.Album) error
+	ReplaceAlbumPhotos(ctx context.Context, albumID uint, photos []models.Photo) error
+	DeleteAlbum(ctx context.Context, id uint) error
+	ListAlbumsByGroup(ctx context.Context, groupID uint, viewerID uint, offset int, limit int) ([]models.Album, int64, error)
 	CreateNote(ctx context.Context, note *models.Note) error
 	GetNoteByID(ctx context.Context, id uint) (*models.Note, error)
 	SaveNote(ctx context.Context, note *models.Note) error

@@ -105,9 +105,9 @@ func (s *HomeService) GetDashboard(ctx context.Context, userID uint) (*Dashboard
 		return nil, fmt.Errorf("find pending ownership transfer: %w", err)
 	}
 
-	latestPhoto, photoErr := s.store.GetLatestVisiblePhotoByGroup(ctx, group.ID, userID)
-	if photoErr != nil && !errors.Is(photoErr, gorm.ErrRecordNotFound) {
-		return nil, fmt.Errorf("load latest photo: %w", photoErr)
+	latestAlbum, albumErr := s.store.GetLatestVisibleAlbumByGroup(ctx, group.ID, userID)
+	if albumErr != nil && !errors.Is(albumErr, gorm.ErrRecordNotFound) {
+		return nil, fmt.Errorf("load latest album: %w", albumErr)
 	}
 
 	latestNote, noteErr := s.store.GetLatestVisibleNoteByGroup(ctx, group.ID, userID, time.Now())
@@ -116,8 +116,8 @@ func (s *HomeService) GetDashboard(ctx context.Context, userID uint) (*Dashboard
 	}
 
 	var recentActivity any
-	if latestPhoto != nil && (latestNote == nil || latestPhoto.CreatedAt.After(latestNote.CreatedAt)) {
-		recentActivity = map[string]any{"type": "photo", "data": latestPhoto}
+	if latestAlbum != nil && (latestNote == nil || latestAlbum.CreatedAt.After(latestNote.CreatedAt)) {
+		recentActivity = map[string]any{"type": "album", "data": latestAlbum}
 	} else if latestNote != nil {
 		recentActivity = map[string]any{"type": "note", "data": latestNote}
 	}

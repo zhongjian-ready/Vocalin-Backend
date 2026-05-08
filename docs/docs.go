@@ -1074,6 +1074,198 @@ const docTemplate = `{
                 }
             }
         },
+        "/records/albums": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Records"
+                ],
+                "summary": "获取相册列表",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "页码，从 1 开始",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "每页条数，最大 100",
+                        "name": "page_size",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/vocalin-backend_internal_response.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/internal_handlers.AlbumResponse"
+                                            }
+                                        },
+                                        "meta": {
+                                            "$ref": "#/definitions/vocalin-backend_internal_response.PaginationMeta"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Records"
+                ],
+                "summary": "创建相册",
+                "parameters": [
+                    {
+                        "description": "Create Album Request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_handlers.CreateAlbumRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/vocalin-backend_internal_response.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/internal_handlers.AlbumResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/records/albums/{id}": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Records"
+                ],
+                "summary": "编辑相册",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Album ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Update Album Request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_handlers.UpdateAlbumRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/vocalin-backend_internal_response.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/internal_handlers.AlbumResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Records"
+                ],
+                "summary": "删除相册",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Album ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/vocalin-backend_internal_response.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/records/notes": {
             "get": {
                 "security": [
@@ -1251,198 +1443,6 @@ const docTemplate = `{
                     {
                         "type": "integer",
                         "description": "Note ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/vocalin-backend_internal_response.APIResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/records/photos": {
-            "get": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Records"
-                ],
-                "summary": "获取照片列表",
-                "parameters": [
-                    {
-                        "type": "integer",
-                        "description": "页码，从 1 开始",
-                        "name": "page",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "description": "每页条数，最大 100",
-                        "name": "page_size",
-                        "in": "query"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/vocalin-backend_internal_response.APIResponse"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "type": "array",
-                                            "items": {
-                                                "$ref": "#/definitions/internal_handlers.PhotoResponse"
-                                            }
-                                        },
-                                        "meta": {
-                                            "$ref": "#/definitions/vocalin-backend_internal_response.PaginationMeta"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    }
-                }
-            },
-            "post": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Records"
-                ],
-                "summary": "上传照片记录",
-                "parameters": [
-                    {
-                        "description": "Create Photo Request",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/internal_handlers.CreatePhotoRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/vocalin-backend_internal_response.APIResponse"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/internal_handlers.PhotoResponse"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    }
-                }
-            }
-        },
-        "/records/photos/{id}": {
-            "put": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Records"
-                ],
-                "summary": "编辑照片记录",
-                "parameters": [
-                    {
-                        "type": "integer",
-                        "description": "Photo ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "Update Photo Request",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/internal_handlers.UpdatePhotoRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/vocalin-backend_internal_response.APIResponse"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/internal_handlers.PhotoResponse"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    }
-                }
-            },
-            "delete": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Records"
-                ],
-                "summary": "删除照片记录",
-                "parameters": [
-                    {
-                        "type": "integer",
-                        "description": "Photo ID",
                         "name": "id",
                         "in": "path",
                         "required": true
@@ -1730,6 +1730,94 @@ const docTemplate = `{
                 }
             }
         },
+        "internal_handlers.AlbumPhotoRequest": {
+            "type": "object",
+            "required": [
+                "url"
+            ],
+            "properties": {
+                "url": {
+                    "type": "string",
+                    "maxLength": 1024
+                }
+            }
+        },
+        "internal_handlers.AlbumPhotoResponse": {
+            "type": "object",
+            "properties": {
+                "album_id": {
+                    "type": "integer"
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "deletedAt": {
+                    "$ref": "#/definitions/gorm.DeletedAt"
+                },
+                "group_id": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "updatedAt": {
+                    "type": "string"
+                },
+                "uploader_id": {
+                    "type": "integer"
+                },
+                "url": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_handlers.AlbumResponse": {
+            "type": "object",
+            "properties": {
+                "comments": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/vocalin-backend_internal_models.Comment"
+                    }
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "creator_id": {
+                    "type": "integer"
+                },
+                "deletedAt": {
+                    "$ref": "#/definitions/gorm.DeletedAt"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "group_id": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "likes": {
+                    "type": "integer"
+                },
+                "photos": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/internal_handlers.AlbumPhotoResponse"
+                    }
+                },
+                "title": {
+                    "type": "string"
+                },
+                "updatedAt": {
+                    "type": "string"
+                },
+                "visibility": {
+                    "type": "string"
+                }
+            }
+        },
         "internal_handlers.AnniversaryResponse": {
             "type": "object",
             "properties": {
@@ -1756,6 +1844,37 @@ const docTemplate = `{
                 },
                 "user_id": {
                     "type": "integer"
+                }
+            }
+        },
+        "internal_handlers.CreateAlbumRequest": {
+            "type": "object",
+            "required": [
+                "photos",
+                "title"
+            ],
+            "properties": {
+                "description": {
+                    "type": "string",
+                    "maxLength": 500
+                },
+                "photos": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                        "$ref": "#/definitions/internal_handlers.AlbumPhotoRequest"
+                    }
+                },
+                "title": {
+                    "type": "string",
+                    "maxLength": 255
+                },
+                "visibility": {
+                    "type": "string",
+                    "enum": [
+                        "public",
+                        "private"
+                    ]
                 }
             }
         },
@@ -1809,29 +1928,6 @@ const docTemplate = `{
                 },
                 "type": {
                     "type": "string"
-                },
-                "visibility": {
-                    "type": "string",
-                    "enum": [
-                        "public",
-                        "private"
-                    ]
-                }
-            }
-        },
-        "internal_handlers.CreatePhotoRequest": {
-            "type": "object",
-            "required": [
-                "url"
-            ],
-            "properties": {
-                "description": {
-                    "type": "string",
-                    "maxLength": 500
-                },
-                "url": {
-                    "type": "string",
-                    "maxLength": 1024
                 },
                 "visibility": {
                     "type": "string",
@@ -2161,50 +2257,6 @@ const docTemplate = `{
                 }
             }
         },
-        "internal_handlers.PhotoResponse": {
-            "type": "object",
-            "properties": {
-                "comments": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/vocalin-backend_internal_models.Comment"
-                    }
-                },
-                "createdAt": {
-                    "type": "string"
-                },
-                "deletedAt": {
-                    "$ref": "#/definitions/gorm.DeletedAt"
-                },
-                "description": {
-                    "type": "string"
-                },
-                "group_id": {
-                    "type": "integer"
-                },
-                "id": {
-                    "type": "integer"
-                },
-                "likes": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/vocalin-backend_internal_models.Like"
-                    }
-                },
-                "updatedAt": {
-                    "type": "string"
-                },
-                "uploader_id": {
-                    "type": "integer"
-                },
-                "url": {
-                    "type": "string"
-                },
-                "visibility": {
-                    "type": "string"
-                }
-            }
-        },
         "internal_handlers.ProfileUserResponse": {
             "type": "object",
             "properties": {
@@ -2342,6 +2394,37 @@ const docTemplate = `{
                 }
             }
         },
+        "internal_handlers.UpdateAlbumRequest": {
+            "type": "object",
+            "required": [
+                "photos",
+                "title"
+            ],
+            "properties": {
+                "description": {
+                    "type": "string",
+                    "maxLength": 500
+                },
+                "photos": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                        "$ref": "#/definitions/internal_handlers.AlbumPhotoRequest"
+                    }
+                },
+                "title": {
+                    "type": "string",
+                    "maxLength": 255
+                },
+                "visibility": {
+                    "type": "string",
+                    "enum": [
+                        "public",
+                        "private"
+                    ]
+                }
+            }
+        },
         "internal_handlers.UpdateNoteRequest": {
             "type": "object",
             "required": [
@@ -2362,29 +2445,6 @@ const docTemplate = `{
                 },
                 "type": {
                     "type": "string"
-                },
-                "visibility": {
-                    "type": "string",
-                    "enum": [
-                        "public",
-                        "private"
-                    ]
-                }
-            }
-        },
-        "internal_handlers.UpdatePhotoRequest": {
-            "type": "object",
-            "required": [
-                "url"
-            ],
-            "properties": {
-                "description": {
-                    "type": "string",
-                    "maxLength": 500
-                },
-                "url": {
-                    "type": "string",
-                    "maxLength": 1024
                 },
                 "visibility": {
                     "type": "string",
@@ -2507,6 +2567,9 @@ const docTemplate = `{
         "vocalin-backend_internal_models.Comment": {
             "type": "object",
             "properties": {
+                "album_id": {
+                    "type": "integer"
+                },
                 "content": {
                     "type": "string"
                 },
@@ -2517,9 +2580,6 @@ const docTemplate = `{
                     "$ref": "#/definitions/gorm.DeletedAt"
                 },
                 "id": {
-                    "type": "integer"
-                },
-                "photo_id": {
                     "type": "integer"
                 },
                 "updatedAt": {
@@ -2583,29 +2643,6 @@ const docTemplate = `{
                 },
                 "updatedAt": {
                     "type": "string"
-                }
-            }
-        },
-        "vocalin-backend_internal_models.Like": {
-            "type": "object",
-            "properties": {
-                "createdAt": {
-                    "type": "string"
-                },
-                "deletedAt": {
-                    "$ref": "#/definitions/gorm.DeletedAt"
-                },
-                "id": {
-                    "type": "integer"
-                },
-                "photo_id": {
-                    "type": "integer"
-                },
-                "updatedAt": {
-                    "type": "string"
-                },
-                "user_id": {
-                    "type": "integer"
                 }
             }
         },

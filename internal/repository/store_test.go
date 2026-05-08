@@ -198,3 +198,87 @@ func TestAddUserToGroupRestoresSoftDeletedMembership(t *testing.T) {
 		t.Fatalf("expected current group id %d, got %v", group.ID, reloaded.CurrentGroupID)
 	}
 }
+
+func TestAlbumReactionsStayOnAlbumWhenReplacingPhotos(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+
+	owner := &models.User{
+		WeChatID:        "album-reaction-owner",
+		Nickname:        "album-reaction-owner",
+		Phone:           "13800138016",
+		StatusUpdatedAt: time.Now(),
+	}
+	if err := store.CreateUser(ctx, owner); err != nil {
+		t.Fatalf("create owner: %v", err)
+	}
+
+	group := &models.Group{Name: "Album Reactions", InviteCode: "ALBREA", CreatorID: owner.ID}
+	if err := store.CreateGroupWithCreator(ctx, owner, group); err != nil {
+		t.Fatalf("create group with creator: %v", err)
+	}
+
+	album := &models.Album{
+		GroupID:     group.ID,
+		CreatorID:   owner.ID,
+		Title:       "album",
+		Description: "album",
+		Visibility:  "public",
+		Photos: []models.Photo{{
+			GroupID:    group.ID,
+			UploaderID: owner.ID,
+			URL:        "https://example.com/original.jpg",
+		}},
+	}
+	if err := store.CreateAlbum(ctx, album); err != nil {
+		t.Fatalf("create album: %v", err)
+	}
+	if err := store.db.WithContext(ctx).Create(&models.Comment{AlbumID: album.ID, UserID: owner.ID, Content: "keep me"}).Error; err != nil {
+		t.Fatalf("create album comment: %v", err)
+	}
+	if err := store.db.WithContext(ctx).Create(&models.Like{AlbumID: album.ID, UserID: owner.ID}).Error; err != nil {
+		t.Fatalf("create album like: %v", err)
+	}
+
+	if err := store.ReplaceAlbumPhotos(ctx, album.ID, []models.Photo{{
+		GroupID:    group.ID,
+		UploaderID: owner.ID,
+		URL:        "https://example.com/replaced.jpg",
+	}}); err != nil {
+		t.Fatalf("replace album photos: %v", err)
+	}
+
+	var commentCount int64
+	if err := store.db.WithContext(ctx).Model(&models.Comment{}).Where("album_id = ?", album.ID).Count(&commentCount).Error; err != nil {
+		t.Fatalf("count album comments: %v", err)
+	}
+	if commentCount != 1 {
+		t.Fatalf("expected album comments to remain after photo replacement, got %d", commentCount)
+	}
+
+	var likeCount int64
+	if err := store.db.WithContext(ctx).Model(&models.Like{}).Where("album_id = ?", album.ID).Count(&likeCount).Error; err != nil {
+		t.Fatalf("count album likes: %v", err)
+	}
+	if likeCount != 1 {
+		t.Fatalf("expected album likes to remain after photo replacement, got %d", likeCount)
+	}
+
+	if err := store.DeleteAlbum(ctx, album.ID); err != nil {
+		t.Fatalf("delete album: %v", err)
+	}
+
+	if err := store.db.WithContext(ctx).Model(&models.Comment{}).Where("album_id = ?", album.ID).Count(&commentCount).Error; err != nil {
+		t.Fatalf("count album comments after delete: %v", err)
+	}
+	if commentCount != 0 {
+		t.Fatalf("expected album comments to be deleted with album, got %d", commentCount)
+	}
+
+	if err := store.db.WithContext(ctx).Model(&models.Like{}).Where("album_id = ?", album.ID).Count(&likeCount).Error; err != nil {
+		t.Fatalf("count album likes after delete: %v", err)
+	}
+	if likeCount != 0 {
+		t.Fatalf("expected album likes to be deleted with album, got %d", likeCount)
+	}
+}
