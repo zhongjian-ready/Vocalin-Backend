@@ -1395,6 +1395,25 @@ paths:
       tags:
       - Records
   /records/notes/{id}:
+    delete:
+      parameters:
+      - description: Note ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/vocalin-backend_internal_response.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: 删除便签
+      tags:
+      - Records
     put:
       consumes:
       - application/json
@@ -1487,6 +1506,25 @@ paths:
       tags:
       - Records
   /records/photos/{id}:
+    delete:
+      parameters:
+      - description: Photo ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/vocalin-backend_internal_response.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: 删除照片记录
+      tags:
+      - Records
     put:
       consumes:
       - application/json
@@ -1579,6 +1617,25 @@ paths:
       tags:
       - Records
   /records/wishlist/{id}:
+    delete:
+      parameters:
+      - description: Wishlist Item ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/vocalin-backend_internal_response.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: 删除愿望清单项
+      tags:
+      - Records
     put:
       consumes:
       - application/json

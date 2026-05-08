@@ -541,6 +541,10 @@ func (s *Store) SavePhoto(ctx context.Context, photo *models.Photo) error {
 	return s.db.WithContext(ctx).Save(photo).Error
 }
 
+func (s *Store) DeletePhoto(ctx context.Context, id uint) error {
+	return s.db.WithContext(ctx).Delete(&models.Photo{}, id).Error
+}
+
 func (s *Store) ListPhotosByGroup(ctx context.Context, groupID uint, viewerID uint, offset int, limit int) ([]models.Photo, int64, error) {
 	var photos []models.Photo
 	query := s.db.WithContext(ctx).Model(&models.Photo{}).Where("group_id = ?", groupID)
@@ -571,6 +575,10 @@ func (s *Store) GetNoteByID(ctx context.Context, id uint) (*models.Note, error) 
 
 func (s *Store) SaveNote(ctx context.Context, note *models.Note) error {
 	return s.db.WithContext(ctx).Save(note).Error
+}
+
+func (s *Store) DeleteNote(ctx context.Context, id uint) error {
+	return s.db.WithContext(ctx).Delete(&models.Note{}, id).Error
 }
 
 func (s *Store) ListVisibleNotesByGroup(ctx context.Context, groupID uint, viewerID uint, now time.Time, offset int, limit int) ([]models.Note, int64, error) {
@@ -615,6 +623,10 @@ func (s *Store) GetWishlistItemByID(ctx context.Context, id uint) (*models.Wishl
 
 func (s *Store) SaveWishlistItem(ctx context.Context, item *models.Wishlist) error {
 	return s.db.WithContext(ctx).Save(item).Error
+}
+
+func (s *Store) DeleteWishlistItem(ctx context.Context, id uint) error {
+	return s.db.WithContext(ctx).Delete(&models.Wishlist{}, id).Error
 }
 
 func (s *Store) EnsureUserByWeChatID(ctx context.Context, user *models.User) error {

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -123,6 +124,46 @@ func TestRecordHandlerCreateTimedNoteNormalizesShowAtToChinaTimezone(t *testing.
 	}
 	if strings.HasSuffix(showAt, "Z") {
 		t.Fatalf("expected show_at not to use UTC suffix, got %q", showAt)
+	}
+}
+
+func TestRecordHandlerDeleteNote(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	handler, store := newTestRecordHandler(t)
+	ctx := context.Background()
+	user := createRecordTestUser(t, store, ctx, "record-handler-delete-user", "record-handler-delete-user", "13800138208")
+	group := createRecordTestGroup(t, store, ctx, user, "record-handler-delete-group", "NOTE12")
+	note := &models.Note{GroupID: group.ID, AuthorID: user.ID, Content: "delete me", Type: "normal"}
+	if err := store.CreateNote(ctx, note); err != nil {
+		t.Fatalf("create note: %v", err)
+	}
+
+	recorder := httptest.NewRecorder()
+	ginContext, _ := gin.CreateTestContext(recorder)
+	ginContext.Request = httptest.NewRequest(http.MethodDelete, "/api/records/notes/1", nil)
+	ginContext.Params = gin.Params{{Key: "id", Value: strconv.FormatUint(uint64(note.ID), 10)}}
+	ginContext.Set(userIDContextKey, user.ID)
+
+	handler.DeleteNote(ginContext)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d, body=%s", http.StatusOK, recorder.Code, recorder.Body.String())
+	}
+
+	var resp response.APIResponse
+	if err := json.Unmarshal(recorder.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal response: %v", err)
+	}
+	if resp.Code != "SUCCESS" {
+		t.Fatalf("expected success code, got %q", resp.Code)
+	}
+	if resp.Message != "删除便签成功" {
+		t.Fatalf("expected delete message, got %q", resp.Message)
+	}
+
+	if _, err := store.GetNoteByID(ctx, note.ID); err == nil {
+		t.Fatal("expected note to be deleted")
 	}
 }
 

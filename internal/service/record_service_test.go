@@ -2,10 +2,13 @@ package service
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
 	"vocalin-backend/internal/models"
+
+	"gorm.io/gorm"
 )
 
 func TestRecordServiceListPhotosWithPagination(t *testing.T) {
@@ -176,7 +179,6 @@ func TestRecordServicePhotoVisibilityCreateUpdateAndList(t *testing.T) {
 	if len(result.Items) != 0 {
 		t.Fatalf("expected private photo to be hidden, got %d items", len(result.Items))
 	}
-
 	updated, err := svc.UpdatePhoto(ctx, owner.ID, photo.ID, "https://example.com/public-photo.jpg", "shared", "public")
 	if err != nil {
 		t.Fatalf("update photo: %v", err)
@@ -248,6 +250,34 @@ func TestRecordServiceNoteVisibilityCreateUpdateAndList(t *testing.T) {
 	}
 }
 
+func TestRecordServiceDeleteNote(t *testing.T) {
+	store := newTestStore(t)
+	svc := NewRecordService(store, newTestLogger())
+	ctx := context.Background()
+
+	user := &models.User{WeChatID: "delete-note-user", Nickname: "delete-note-user", Phone: "13800138012", StatusUpdatedAt: time.Now()}
+	if err := store.CreateUser(ctx, user); err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	group := &models.Group{Name: "delete-note-group", InviteCode: "NOTE11", CreatorID: user.ID}
+	if err := store.CreateGroupWithCreator(ctx, user, group); err != nil {
+		t.Fatalf("create group: %v", err)
+	}
+	note := &models.Note{GroupID: group.ID, AuthorID: user.ID, Content: "delete me", Type: "normal"}
+	if err := store.CreateNote(ctx, note); err != nil {
+		t.Fatalf("create note: %v", err)
+	}
+
+	if err := svc.DeleteNote(ctx, user.ID, note.ID); err != nil {
+		t.Fatalf("delete note: %v", err)
+	}
+
+	_, err := store.GetNoteByID(ctx, note.ID)
+	if !errors.Is(err, gorm.ErrRecordNotFound) {
+		t.Fatalf("expected deleted note to be missing, got %v", err)
+	}
+}
+
 func TestRecordServiceWishlistVisibilityCreateUpdateAndList(t *testing.T) {
 	store := newTestStore(t)
 	svc := NewRecordService(store, newTestLogger())
@@ -302,5 +332,61 @@ func TestRecordServiceWishlistVisibilityCreateUpdateAndList(t *testing.T) {
 	}
 	if len(result.Items) != 1 {
 		t.Fatalf("expected 1 visible wishlist item after update, got %d", len(result.Items))
+	}
+}
+
+func TestRecordServiceDeletePhoto(t *testing.T) {
+	store := newTestStore(t)
+	svc := NewRecordService(store, newTestLogger())
+	ctx := context.Background()
+
+	user := &models.User{WeChatID: "delete-photo-user", Nickname: "delete-photo-user", Phone: "13800138011", StatusUpdatedAt: time.Now()}
+	if err := store.CreateUser(ctx, user); err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	group := &models.Group{Name: "delete-photo-group", InviteCode: "PHOTO3", CreatorID: user.ID}
+	if err := store.CreateGroupWithCreator(ctx, user, group); err != nil {
+		t.Fatalf("create group: %v", err)
+	}
+	photo := &models.Photo{GroupID: group.ID, UploaderID: user.ID, URL: "https://example.com/delete-photo.jpg", Description: "photo"}
+	if err := store.CreatePhoto(ctx, photo); err != nil {
+		t.Fatalf("create photo: %v", err)
+	}
+
+	if err := svc.DeletePhoto(ctx, user.ID, photo.ID); err != nil {
+		t.Fatalf("delete photo: %v", err)
+	}
+
+	_, err := store.GetPhotoByID(ctx, photo.ID)
+	if !errors.Is(err, gorm.ErrRecordNotFound) {
+		t.Fatalf("expected deleted photo to be missing, got %v", err)
+	}
+}
+
+func TestRecordServiceDeleteWishlist(t *testing.T) {
+	store := newTestStore(t)
+	svc := NewRecordService(store, newTestLogger())
+	ctx := context.Background()
+
+	user := &models.User{WeChatID: "delete-wishlist-user", Nickname: "delete-wishlist-user", Phone: "13800138013", StatusUpdatedAt: time.Now()}
+	if err := store.CreateUser(ctx, user); err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	group := &models.Group{Name: "delete-wishlist-group", InviteCode: "WISH05", CreatorID: user.ID}
+	if err := store.CreateGroupWithCreator(ctx, user, group); err != nil {
+		t.Fatalf("create group: %v", err)
+	}
+	item := &models.Wishlist{GroupID: group.ID, CreatorID: user.ID, Content: "delete wish"}
+	if err := store.CreateWishlistItem(ctx, item); err != nil {
+		t.Fatalf("create wishlist item: %v", err)
+	}
+
+	if err := svc.DeleteWishlist(ctx, user.ID, item.ID); err != nil {
+		t.Fatalf("delete wishlist item: %v", err)
+	}
+
+	_, err := store.GetWishlistItemByID(ctx, item.ID)
+	if !errors.Is(err, gorm.ErrRecordNotFound) {
+		t.Fatalf("expected deleted wishlist item to be missing, got %v", err)
 	}
 }

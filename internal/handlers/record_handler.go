@@ -125,6 +125,29 @@ func (h *RecordHandler) GetPhotos(c *gin.Context) {
 	response.JSON(c, 200, "SUCCESS", "获取照片列表成功", photos.Items, response.NewPaginationMeta(photos.Page, photos.PageSize, photos.Total))
 }
 
+// DeletePhoto godoc
+// @Summary 删除照片记录
+// @Tags Records
+// @Produce json
+// @Param id path int true "Photo ID"
+// @Security BearerAuth
+// @Success 200 {object} response.APIResponse
+// @Router /records/photos/{id} [delete]
+func (h *RecordHandler) DeletePhoto(c *gin.Context) {
+	photoID, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		response.Error(c, 400, "VALIDATION_ERROR", "无效的照片 ID")
+		return
+	}
+
+	if err := h.recordService.DeletePhoto(c.Request.Context(), currentUserID(c), uint(photoID)); err != nil {
+		writeServiceError(c, err)
+		return
+	}
+
+	response.Success(c, "删除照片成功", nil)
+}
+
 // CreateNote godoc
 // @Summary 创建便签
 // @Tags Records
@@ -202,6 +225,29 @@ func (h *RecordHandler) GetNotes(c *gin.Context) {
 	response.JSON(c, 200, "SUCCESS", "获取便签列表成功", notes.Items, response.NewPaginationMeta(notes.Page, notes.PageSize, notes.Total))
 }
 
+// DeleteNote godoc
+// @Summary 删除便签
+// @Tags Records
+// @Produce json
+// @Param id path int true "Note ID"
+// @Security BearerAuth
+// @Success 200 {object} response.APIResponse
+// @Router /records/notes/{id} [delete]
+func (h *RecordHandler) DeleteNote(c *gin.Context) {
+	noteID, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		response.Error(c, 400, "VALIDATION_ERROR", "无效的便签 ID")
+		return
+	}
+
+	if err := h.recordService.DeleteNote(c.Request.Context(), currentUserID(c), uint(noteID)); err != nil {
+		writeServiceError(c, err)
+		return
+	}
+
+	response.Success(c, "删除便签成功", nil)
+}
+
 // CreateWishlist godoc
 // @Summary 新增愿望清单项
 // @Tags Records
@@ -277,6 +323,29 @@ func (h *RecordHandler) GetWishlist(c *gin.Context) {
 	}
 
 	response.JSON(c, 200, "SUCCESS", "获取愿望清单成功", items.Items, response.NewPaginationMeta(items.Page, items.PageSize, items.Total))
+}
+
+// DeleteWishlist godoc
+// @Summary 删除愿望清单项
+// @Tags Records
+// @Produce json
+// @Param id path int true "Wishlist Item ID"
+// @Security BearerAuth
+// @Success 200 {object} response.APIResponse
+// @Router /records/wishlist/{id} [delete]
+func (h *RecordHandler) DeleteWishlist(c *gin.Context) {
+	itemID, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		response.Error(c, 400, "VALIDATION_ERROR", "无效的愿望清单 ID")
+		return
+	}
+
+	if err := h.recordService.DeleteWishlist(c.Request.Context(), currentUserID(c), uint(itemID)); err != nil {
+		writeServiceError(c, err)
+		return
+	}
+
+	response.Success(c, "删除愿望清单成功", nil)
 }
 
 // CompleteWishlist godoc

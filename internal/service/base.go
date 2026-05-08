@@ -52,15 +52,18 @@ type Store interface {
 	CreatePhoto(ctx context.Context, photo *models.Photo) error
 	GetPhotoByID(ctx context.Context, id uint) (*models.Photo, error)
 	SavePhoto(ctx context.Context, photo *models.Photo) error
+	DeletePhoto(ctx context.Context, id uint) error
 	ListPhotosByGroup(ctx context.Context, groupID uint, viewerID uint, offset int, limit int) ([]models.Photo, int64, error)
 	CreateNote(ctx context.Context, note *models.Note) error
 	GetNoteByID(ctx context.Context, id uint) (*models.Note, error)
 	SaveNote(ctx context.Context, note *models.Note) error
+	DeleteNote(ctx context.Context, id uint) error
 	ListVisibleNotesByGroup(ctx context.Context, groupID uint, viewerID uint, now time.Time, offset int, limit int) ([]models.Note, int64, error)
 	CreateWishlistItem(ctx context.Context, item *models.Wishlist) error
 	ListWishlistByGroup(ctx context.Context, groupID uint, viewerID uint, offset int, limit int) ([]models.Wishlist, int64, error)
 	GetWishlistItemByID(ctx context.Context, id uint) (*models.Wishlist, error)
 	SaveWishlistItem(ctx context.Context, item *models.Wishlist) error
+	DeleteWishlistItem(ctx context.Context, id uint) error
 	EnsureUserByWeChatID(ctx context.Context, user *models.User) error
 	EnsureGroupByInviteCode(ctx context.Context, group *models.Group) error
 	CreateRefreshToken(ctx context.Context, token *models.RefreshToken) error

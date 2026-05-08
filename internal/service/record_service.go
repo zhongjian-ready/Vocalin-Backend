@@ -78,6 +78,30 @@ func (s *RecordService) ListPhotos(ctx context.Context, userID uint, pagination 
 	return &result, nil
 }
 
+func (s *RecordService) DeletePhoto(ctx context.Context, userID, photoID uint) error {
+	_, groupID, err := s.currentGroupUser(ctx, userID)
+	if err != nil {
+		return err
+	}
+	photo, err := s.store.GetPhotoByID(ctx, photoID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrPhotoNotFound
+		}
+		return fmt.Errorf("get photo: %w", err)
+	}
+	if photo.GroupID != groupID {
+		return ErrForbidden
+	}
+	if photo.UploaderID != userID {
+		return ErrForbidden
+	}
+	if err := s.store.DeletePhoto(ctx, photo.ID); err != nil {
+		return fmt.Errorf("delete photo: %w", err)
+	}
+	return nil
+}
+
 func (s *RecordService) CreateNote(ctx context.Context, userID uint, content, color, noteType string, showAt *time.Time, visibility string) (*models.Note, error) {
 	user, groupID, err := s.currentGroupUser(ctx, userID)
 	if err != nil {
@@ -147,6 +171,30 @@ func (s *RecordService) ListNotes(ctx context.Context, userID uint, pagination P
 	return &result, nil
 }
 
+func (s *RecordService) DeleteNote(ctx context.Context, userID, noteID uint) error {
+	_, groupID, err := s.currentGroupUser(ctx, userID)
+	if err != nil {
+		return err
+	}
+	note, err := s.store.GetNoteByID(ctx, noteID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrNoteNotFound
+		}
+		return fmt.Errorf("get note: %w", err)
+	}
+	if note.GroupID != groupID {
+		return ErrForbidden
+	}
+	if note.AuthorID != userID {
+		return ErrForbidden
+	}
+	if err := s.store.DeleteNote(ctx, note.ID); err != nil {
+		return fmt.Errorf("delete note: %w", err)
+	}
+	return nil
+}
+
 func (s *RecordService) CreateWishlist(ctx context.Context, userID uint, content string, priority string, visibility string) (*models.Wishlist, error) {
 	user, groupID, err := s.currentGroupUser(ctx, userID)
 	if err != nil {
@@ -205,6 +253,30 @@ func (s *RecordService) CompleteWishlist(ctx context.Context, userID, itemID uin
 
 func (s *RecordService) IncompleteWishlist(ctx context.Context, userID, itemID uint) (*models.Wishlist, error) {
 	return s.setWishlistCompletion(ctx, userID, itemID, false)
+}
+
+func (s *RecordService) DeleteWishlist(ctx context.Context, userID, itemID uint) error {
+	_, groupID, err := s.currentGroupUser(ctx, userID)
+	if err != nil {
+		return err
+	}
+	item, err := s.store.GetWishlistItemByID(ctx, itemID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrWishlistItemNotFound
+		}
+		return fmt.Errorf("get wishlist item: %w", err)
+	}
+	if item.GroupID != groupID {
+		return ErrForbidden
+	}
+	if !isEditableByUser(item.CreatorID, userID) {
+		return ErrForbidden
+	}
+	if err := s.store.DeleteWishlistItem(ctx, item.ID); err != nil {
+		return fmt.Errorf("delete wishlist item: %w", err)
+	}
+	return nil
 }
 
 func (s *RecordService) setWishlistCompletion(ctx context.Context, userID, itemID uint, completed bool) (*models.Wishlist, error) {

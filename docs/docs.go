@@ -1233,6 +1233,37 @@ const docTemplate = `{
                         }
                     }
                 }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Records"
+                ],
+                "summary": "删除便签",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Note ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/vocalin-backend_internal_response.APIResponse"
+                        }
+                    }
+                }
             }
         },
         "/records/photos": {
@@ -1394,6 +1425,37 @@ const docTemplate = `{
                         }
                     }
                 }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Records"
+                ],
+                "summary": "删除照片记录",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Photo ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/vocalin-backend_internal_response.APIResponse"
+                        }
+                    }
+                }
             }
         },
         "/records/wishlist": {
@@ -1552,6 +1614,37 @@ const docTemplate = `{
                                     }
                                 }
                             ]
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Records"
+                ],
+                "summary": "删除愿望清单项",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Wishlist Item ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/vocalin-backend_internal_response.APIResponse"
                         }
                     }
                 }
