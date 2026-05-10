@@ -34,6 +34,8 @@ var (
 	ErrTimedNoteRequiresShowAt = errors.New("定时便签必须提供展示时间")
 	ErrAlbumRequiresPhotos     = errors.New("相册至少需要一张照片")
 	ErrAlbumNotFound           = errors.New("相册不存在")
+	ErrNoteFolderNotFound      = errors.New("便签分类不存在")
+	ErrReservedNoteFolderName  = errors.New("all 和 shared 为系统分类名称，不能使用")
 	ErrNoteNotFound            = errors.New("便签不存在")
 	ErrWishlistItemNotFound    = errors.New("愿望条目不存在")
 	ErrForbidden               = errors.New("无权访问该资源")

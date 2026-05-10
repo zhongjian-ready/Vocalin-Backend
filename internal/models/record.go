@@ -40,17 +40,26 @@ type Like struct {
 	UserID  uint `json:"user_id"`
 }
 
+type NoteFolder struct {
+	gorm.Model
+	GroupID uint   `gorm:"index" json:"group_id"`
+	OwnerID uint   `gorm:"index" json:"owner_id"`
+	Name    string `gorm:"size:100" json:"name"`
+}
+
 type Note struct {
 	gorm.Model
-	GroupID    uint       `gorm:"index" json:"group_id"`
-	AuthorID   uint       `json:"author_id"`
-	Content    string     `json:"content"`
-	Color      string     `json:"color"`
-	Type       string     `json:"type"` // "normal", "burn", "timed"
-	ShowAt     *time.Time `json:"show_at"`
-	Visibility string     `gorm:"size:20;default:public" json:"visibility"`
-	IsBurned   bool       `json:"is_burned"`
-	Author     User       `gorm:"foreignKey:AuthorID" json:"author"`
+	GroupID    uint        `gorm:"index" json:"group_id"`
+	AuthorID   uint        `json:"author_id"`
+	FolderID   *uint       `gorm:"index" json:"folder_id"`
+	Content    string      `gorm:"type:longtext" json:"content"`
+	Color      string      `json:"color"`
+	Type       string      `json:"type"` // "normal", "burn", "timed"
+	ShowAt     *time.Time  `json:"show_at"`
+	Visibility string      `gorm:"size:20;default:public" json:"visibility"`
+	IsBurned   bool        `json:"is_burned"`
+	Author     User        `gorm:"foreignKey:AuthorID" json:"author"`
+	Folder     *NoteFolder `gorm:"foreignKey:FolderID" json:"folder,omitempty"`
 }
 
 type Wishlist struct {

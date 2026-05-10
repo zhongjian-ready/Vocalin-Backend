@@ -21,6 +21,7 @@ func ManagedModels() []any {
 		&models.Photo{},
 		&models.Comment{},
 		&models.Like{},
+		&models.NoteFolder{},
 		&models.Note{},
 		&models.Wishlist{},
 		&models.Anniversary{},

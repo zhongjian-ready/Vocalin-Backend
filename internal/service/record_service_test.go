@@ -235,15 +235,23 @@ func TestRecordServiceNoteVisibilityCreateUpdateAndList(t *testing.T) {
 		t.Fatalf("add viewer to group: %v", err)
 	}
 
-	note, err := svc.CreateNote(ctx, owner.ID, "secret note", "#fff", "normal", nil, "private")
+	folder, err := svc.CreateNoteFolder(ctx, owner.ID, "Diary")
+	if err != nil {
+		t.Fatalf("create note folder: %v", err)
+	}
+
+	note, err := svc.CreateNote(ctx, owner.ID, &folder.ID, "secret note", "#fff", "normal", nil, "private")
 	if err != nil {
 		t.Fatalf("create note: %v", err)
 	}
 	if note.Visibility != "private" {
 		t.Fatalf("expected private visibility, got %q", note.Visibility)
 	}
+	if note.Folder == nil || note.Folder.Name != "Diary" {
+		t.Fatalf("expected folder Diary, got %+v", note.Folder)
+	}
 
-	result, err := svc.ListNotes(ctx, viewer.ID, NewPagination(1, 10))
+	result, err := svc.ListNotes(ctx, viewer.ID, NewPagination(1, 10), NoteListFilter{})
 	if err != nil {
 		t.Fatalf("list notes for viewer: %v", err)
 	}
@@ -251,7 +259,7 @@ func TestRecordServiceNoteVisibilityCreateUpdateAndList(t *testing.T) {
 		t.Fatalf("expected private note to be hidden, got %d items", len(result.Items))
 	}
 
-	updated, err := svc.UpdateNote(ctx, owner.ID, note.ID, "shared note", "#000", "normal", nil, "public")
+	updated, err := svc.UpdateNote(ctx, owner.ID, note.ID, &folder.ID, "shared note", "#000", "normal", nil, "public")
 	if err != nil {
 		t.Fatalf("update note: %v", err)
 	}
@@ -259,12 +267,15 @@ func TestRecordServiceNoteVisibilityCreateUpdateAndList(t *testing.T) {
 		t.Fatalf("expected public visibility after update, got %q", updated.Visibility)
 	}
 
-	result, err = svc.ListNotes(ctx, viewer.ID, NewPagination(1, 10))
+	result, err = svc.ListNotes(ctx, viewer.ID, NewPagination(1, 10), NoteListFilter{})
 	if err != nil {
 		t.Fatalf("list notes after update: %v", err)
 	}
 	if len(result.Items) != 1 {
 		t.Fatalf("expected 1 visible note after update, got %d", len(result.Items))
+	}
+	if result.Items[0].Folder == nil || result.Items[0].Folder.Name != "Diary" {
+		t.Fatalf("expected visible note folder Diary, got %+v", result.Items[0].Folder)
 	}
 }
 
@@ -293,6 +304,187 @@ func TestRecordServiceDeleteNote(t *testing.T) {
 	_, err := store.GetNoteByID(ctx, note.ID)
 	if !errors.Is(err, gorm.ErrRecordNotFound) {
 		t.Fatalf("expected deleted note to be missing, got %v", err)
+	}
+}
+
+func TestRecordServiceNoteFolderCRUDAndDeleteFallback(t *testing.T) {
+	store := newTestStore(t)
+	svc := NewRecordService(store, newTestLogger())
+	ctx := context.Background()
+
+	user := &models.User{WeChatID: "note-folder-user", Nickname: "note-folder-user", Phone: "13800138013", StatusUpdatedAt: time.Now()}
+	if err := store.CreateUser(ctx, user); err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	group := &models.Group{Name: "note-folder-group", InviteCode: "NOTE13", CreatorID: user.ID}
+	if err := store.CreateGroupWithCreator(ctx, user, group); err != nil {
+		t.Fatalf("create group: %v", err)
+	}
+
+	folder, err := svc.CreateNoteFolder(ctx, user.ID, "Work")
+	if err != nil {
+		t.Fatalf("create note folder: %v", err)
+	}
+	if folder.Name != "Work" {
+		t.Fatalf("expected folder name Work, got %q", folder.Name)
+	}
+
+	if _, err := svc.CreateNoteFolder(ctx, user.ID, "shared"); !errors.Is(err, ErrReservedNoteFolderName) {
+		t.Fatalf("expected reserved folder error, got %v", err)
+	}
+
+	note, err := svc.CreateNote(ctx, user.ID, &folder.ID, "classified", "#fff", "normal", nil, "private")
+	if err != nil {
+		t.Fatalf("create note with folder: %v", err)
+	}
+
+	updated, err := svc.UpdateNoteFolder(ctx, user.ID, folder.ID, "Travel")
+	if err != nil {
+		t.Fatalf("update note folder: %v", err)
+	}
+	if updated.Name != "Travel" {
+		t.Fatalf("expected renamed folder Travel, got %q", updated.Name)
+	}
+
+	folders, err := svc.ListNoteFolders(ctx, user.ID)
+	if err != nil {
+		t.Fatalf("list note folders: %v", err)
+	}
+	if len(folders) != 1 || folders[0].Name != "Travel" {
+		t.Fatalf("expected one Travel folder, got %+v", folders)
+	}
+
+	if err := svc.DeleteNoteFolder(ctx, user.ID, folder.ID); err != nil {
+		t.Fatalf("delete note folder: %v", err)
+	}
+
+	reloaded, err := store.GetNoteByID(ctx, note.ID)
+	if err != nil {
+		t.Fatalf("reload note after folder delete: %v", err)
+	}
+	if reloaded.FolderID != nil {
+		t.Fatalf("expected note folder_id cleared after folder delete, got %v", *reloaded.FolderID)
+	}
+}
+
+func TestRecordServiceMoveNoteAndUpdateVisibility(t *testing.T) {
+	store := newTestStore(t)
+	svc := NewRecordService(store, newTestLogger())
+	ctx := context.Background()
+
+	user := &models.User{WeChatID: "note-move-user", Nickname: "note-move-user", Phone: "13800138016", StatusUpdatedAt: time.Now()}
+	if err := store.CreateUser(ctx, user); err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	group := &models.Group{Name: "note-move-group", InviteCode: "NOTE17", CreatorID: user.ID}
+	if err := store.CreateGroupWithCreator(ctx, user, group); err != nil {
+		t.Fatalf("create group: %v", err)
+	}
+	folder := &models.NoteFolder{GroupID: group.ID, OwnerID: user.ID, Name: "Pinned"}
+	if err := store.CreateNoteFolder(ctx, folder); err != nil {
+		t.Fatalf("create note folder: %v", err)
+	}
+	note := &models.Note{GroupID: group.ID, AuthorID: user.ID, Content: "move me", Type: "normal", Visibility: "private"}
+	if err := store.CreateNote(ctx, note); err != nil {
+		t.Fatalf("create note: %v", err)
+	}
+
+	moved, err := svc.MoveNoteToFolder(ctx, user.ID, note.ID, &folder.ID)
+	if err != nil {
+		t.Fatalf("move note to folder: %v", err)
+	}
+	if moved.FolderID == nil || *moved.FolderID != folder.ID {
+		t.Fatalf("expected folder id %d, got %+v", folder.ID, moved.FolderID)
+	}
+
+	visible, err := svc.UpdateNoteVisibility(ctx, user.ID, note.ID, "public")
+	if err != nil {
+		t.Fatalf("update note visibility: %v", err)
+	}
+	if visible.Visibility != "public" {
+		t.Fatalf("expected public visibility, got %q", visible.Visibility)
+	}
+
+	reset, err := svc.MoveNoteToFolder(ctx, user.ID, note.ID, nil)
+	if err != nil {
+		t.Fatalf("move note back to all: %v", err)
+	}
+	if reset.FolderID != nil {
+		t.Fatalf("expected folder id nil after reset, got %+v", reset.FolderID)
+	}
+}
+
+func TestRecordServiceListNotesWithFolderFilters(t *testing.T) {
+	store := newTestStore(t)
+	svc := NewRecordService(store, newTestLogger())
+	ctx := context.Background()
+
+	owner := &models.User{WeChatID: "note-filter-owner", Nickname: "note-filter-owner", Phone: "13800138014", StatusUpdatedAt: time.Now()}
+	if err := store.CreateUser(ctx, owner); err != nil {
+		t.Fatalf("create owner: %v", err)
+	}
+	viewer := &models.User{WeChatID: "note-filter-viewer", Nickname: "note-filter-viewer", Phone: "13800138015", StatusUpdatedAt: time.Now()}
+	if err := store.CreateUser(ctx, viewer); err != nil {
+		t.Fatalf("create viewer: %v", err)
+	}
+	group := &models.Group{Name: "note-filter-group", InviteCode: "NOTE15", CreatorID: owner.ID}
+	if err := store.CreateGroupWithCreator(ctx, owner, group); err != nil {
+		t.Fatalf("create group: %v", err)
+	}
+	if err := store.AddUserToGroup(ctx, viewer, group.ID); err != nil {
+		t.Fatalf("add viewer to group: %v", err)
+	}
+	folder, err := svc.CreateNoteFolder(ctx, owner.ID, "Travel")
+	if err != nil {
+		t.Fatalf("create note folder: %v", err)
+	}
+	if _, err := svc.CreateNote(ctx, owner.ID, nil, "uncategorized", "#fff", "normal", nil, "public"); err != nil {
+		t.Fatalf("create uncategorized note: %v", err)
+	}
+	if _, err := svc.CreateNote(ctx, owner.ID, &folder.ID, "custom note", "#000", "normal", nil, "public"); err != nil {
+		t.Fatalf("create folder note: %v", err)
+	}
+	if _, err := svc.CreateNote(ctx, viewer.ID, nil, "viewer share", "#111", "normal", nil, "public"); err != nil {
+		t.Fatalf("create viewer shared note: %v", err)
+	}
+
+	allResult, err := svc.ListNotes(ctx, owner.ID, NewPagination(1, 10), NoteListFilter{FolderType: "all"})
+	if err != nil {
+		t.Fatalf("list all notes: %v", err)
+	}
+	if len(allResult.Items) != 2 {
+		t.Fatalf("expected both owned notes in all filter, got %+v", allResult.Items)
+	}
+	contents := map[string]bool{}
+	for _, item := range allResult.Items {
+		contents[item.Content] = true
+	}
+	if !contents["uncategorized"] || !contents["custom note"] {
+		t.Fatalf("expected all filter to include categorized and uncategorized notes, got %+v", allResult.Items)
+	}
+
+	customResult, err := svc.ListNotes(ctx, owner.ID, NewPagination(1, 10), NoteListFilter{FolderType: "custom"})
+	if err != nil {
+		t.Fatalf("list custom notes: %v", err)
+	}
+	if len(customResult.Items) != 1 || customResult.Items[0].Content != "custom note" {
+		t.Fatalf("expected custom note in custom filter, got %+v", customResult.Items)
+	}
+
+	folderResult, err := svc.ListNotes(ctx, owner.ID, NewPagination(1, 10), NoteListFilter{FolderID: &folder.ID})
+	if err != nil {
+		t.Fatalf("list notes by folder id: %v", err)
+	}
+	if len(folderResult.Items) != 1 || folderResult.Items[0].Content != "custom note" {
+		t.Fatalf("expected custom note for folder id filter, got %+v", folderResult.Items)
+	}
+
+	sharedResult, err := svc.ListNotes(ctx, owner.ID, NewPagination(1, 10), NoteListFilter{FolderType: "shared"})
+	if err != nil {
+		t.Fatalf("list shared notes: %v", err)
+	}
+	if len(sharedResult.Items) != 1 || sharedResult.Items[0].Content != "viewer share" {
+		t.Fatalf("expected viewer shared note in shared filter, got %+v", sharedResult.Items)
 	}
 }
 

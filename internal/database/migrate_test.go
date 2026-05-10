@@ -2,6 +2,7 @@ package database
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -11,6 +12,11 @@ import (
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
+
+type pragmaTableInfoRow struct {
+	Name string `gorm:"column:name"`
+	Type string `gorm:"column:type"`
+}
 
 func TestAutoMigrateBackfillsLegacyPhotosIntoAlbums(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open("file::memory:?cache=shared"), &gorm.Config{})
@@ -137,7 +143,6 @@ func TestAutoMigrateBackfillsLegacyPhotosIntoAlbums(t *testing.T) {
 	if HasColumn(db, "photos", "source") {
 		t.Fatal("expected legacy photos.source column to be dropped")
 	}
-
 	var rawCreatorID int
 	if err := db.Table("albums").Select("creator_id").Where("id = ?", albums[0].ID).Scan(&rawCreatorID).Error; err != nil {
 		t.Fatalf("read raw creator_id: %v", err)
@@ -194,4 +199,31 @@ func TestAutoMigrateBackfillsLegacyPhotosIntoAlbums(t *testing.T) {
 	if albumCount != 1 {
 		t.Fatalf("expected idempotent migration, got %d albums", albumCount)
 	}
+}
+
+func TestAutoMigrateUsesLongTextForNoteContent(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open("file::memory:?cache=shared"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+
+	if err := AutoMigrate(db); err != nil {
+		t.Fatalf("auto migrate: %v", err)
+	}
+
+	var columns []pragmaTableInfoRow
+	if err := db.Raw("PRAGMA table_info(notes)").Scan(&columns).Error; err != nil {
+		t.Fatalf("load notes table info: %v", err)
+	}
+
+	for _, column := range columns {
+		if column.Name == "content" {
+			if !strings.Contains(strings.ToUpper(column.Type), "TEXT") {
+				t.Fatalf("expected notes.content to use a text column type, got %q", column.Type)
+			}
+			return
+		}
+	}
+
+	t.Fatal("expected notes.content column to exist")
 }

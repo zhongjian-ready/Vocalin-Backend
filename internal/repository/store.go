@@ -619,35 +619,101 @@ func (s *Store) ListAlbumsByGroup(ctx context.Context, groupID uint, viewerID ui
 	return albums, total, nil
 }
 
+func preloadNoteRelations(db *gorm.DB) *gorm.DB {
+	return db.Preload("Folder")
+}
+
+func (s *Store) CreateNoteFolder(ctx context.Context, folder *models.NoteFolder) error {
+	return s.db.WithContext(ctx).Create(folder).Error
+}
+
+func (s *Store) GetNoteFolderByID(ctx context.Context, id uint) (*models.NoteFolder, error) {
+	var folder models.NoteFolder
+	if err := s.db.WithContext(ctx).First(&folder, id).Error; err != nil {
+		return nil, err
+	}
+	return &folder, nil
+}
+
+func (s *Store) SaveNoteFolder(ctx context.Context, folder *models.NoteFolder) error {
+	return s.db.WithContext(ctx).Model(&models.NoteFolder{}).Where("id = ?", folder.ID).Update("name", folder.Name).Error
+}
+
+func (s *Store) DeleteNoteFolder(ctx context.Context, id uint, ownerID uint) error {
+	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&models.Note{}).Where("folder_id = ? AND author_id = ?", id, ownerID).Update("folder_id", nil).Error; err != nil {
+			return err
+		}
+		return tx.Delete(&models.NoteFolder{}, id).Error
+	})
+}
+
+func (s *Store) ListNoteFoldersByOwner(ctx context.Context, groupID uint, ownerID uint) ([]models.NoteFolder, error) {
+	var folders []models.NoteFolder
+	if err := s.db.WithContext(ctx).Where("group_id = ? AND owner_id = ?", groupID, ownerID).Order("created_at asc").Find(&folders).Error; err != nil {
+		return nil, err
+	}
+	return folders, nil
+}
+
 func (s *Store) CreateNote(ctx context.Context, note *models.Note) error {
 	return s.db.WithContext(ctx).Create(note).Error
 }
 
 func (s *Store) GetNoteByID(ctx context.Context, id uint) (*models.Note, error) {
 	var note models.Note
-	if err := s.db.WithContext(ctx).First(&note, id).Error; err != nil {
+	if err := preloadNoteRelations(s.db.WithContext(ctx)).First(&note, id).Error; err != nil {
 		return nil, err
 	}
 	return &note, nil
 }
 
 func (s *Store) SaveNote(ctx context.Context, note *models.Note) error {
-	return s.db.WithContext(ctx).Save(note).Error
+	return s.db.WithContext(ctx).Model(&models.Note{}).Where("id = ?", note.ID).Updates(map[string]any{
+		"folder_id":  note.FolderID,
+		"content":    note.Content,
+		"color":      note.Color,
+		"type":       note.Type,
+		"show_at":    note.ShowAt,
+		"visibility": note.Visibility,
+		"is_burned":  note.IsBurned,
+	}).Error
 }
 
 func (s *Store) DeleteNote(ctx context.Context, id uint) error {
 	return s.db.WithContext(ctx).Delete(&models.Note{}, id).Error
 }
 
-func (s *Store) ListVisibleNotesByGroup(ctx context.Context, groupID uint, viewerID uint, now time.Time, offset int, limit int) ([]models.Note, int64, error) {
+func applyNoteFolderFilter(query *gorm.DB, viewerID uint, folderType string, folderID *uint) *gorm.DB {
+	if folderID != nil {
+		return query.Where("author_id = ? AND folder_id = ?", viewerID, *folderID)
+	}
+
+	switch folderType {
+	case "all":
+		return query.Where("author_id = ?", viewerID)
+	case "shared":
+		return query.Where("author_id <> ?", viewerID)
+	case "custom":
+		return query.Where("author_id = ? AND folder_id IS NOT NULL", viewerID)
+	default:
+		return query
+	}
+}
+
+func (s *Store) ListVisibleNotesByGroup(ctx context.Context, groupID uint, viewerID uint, now time.Time, offset int, limit int, folderType string, folderID *uint) ([]models.Note, int64, error) {
 	var notes []models.Note
 	query := s.db.WithContext(ctx).Model(&models.Note{}).Where("group_id = ? AND (show_at IS NULL OR show_at <= ?)", groupID, now)
 	query = visibilityScopeQuery(query, "author_id", viewerID)
+	query = applyNoteFolderFilter(query, viewerID, folderType, folderID)
 	var total int64
 	if err := query.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
-	if err := query.Order("created_at desc").Offset(offset).Limit(limit).Find(&notes).Error; err != nil {
+	listQuery := s.db.WithContext(ctx).Where("group_id = ? AND (show_at IS NULL OR show_at <= ?)", groupID, now)
+	listQuery = visibilityScopeQuery(listQuery, "author_id", viewerID)
+	listQuery = applyNoteFolderFilter(listQuery, viewerID, folderType, folderID)
+	if err := preloadNoteRelations(listQuery).Order("created_at desc").Offset(offset).Limit(limit).Find(&notes).Error; err != nil {
 		return nil, 0, err
 	}
 	return notes, total, nil

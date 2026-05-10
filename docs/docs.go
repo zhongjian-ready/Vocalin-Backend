@@ -1266,6 +1266,181 @@ const docTemplate = `{
                 }
             }
         },
+        "/records/note-folders": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Records"
+                ],
+                "summary": "获取便签分类列表",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/vocalin-backend_internal_response.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/internal_handlers.NoteFolderResponse"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Records"
+                ],
+                "summary": "创建便签分类",
+                "parameters": [
+                    {
+                        "description": "Create Note Folder Request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_handlers.CreateNoteFolderRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/vocalin-backend_internal_response.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/internal_handlers.NoteFolderResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/records/note-folders/{id}": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Records"
+                ],
+                "summary": "编辑便签分类",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Note Folder ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Update Note Folder Request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_handlers.UpdateNoteFolderRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/vocalin-backend_internal_response.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/internal_handlers.NoteFolderResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Records"
+                ],
+                "summary": "删除便签分类",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Note Folder ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/vocalin-backend_internal_response.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/records/notes": {
             "get": {
                 "security": [
@@ -1291,6 +1466,18 @@ const docTemplate = `{
                         "type": "integer",
                         "description": "每页条数，最大 100",
                         "name": "page_size",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "分类过滤：all、shared、custom",
+                        "name": "folder_type",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "自定义分类 ID，传入后精确过滤该分类",
+                        "name": "folder_id",
                         "in": "query"
                     }
                 ],
@@ -1453,6 +1640,120 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/vocalin-backend_internal_response.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/records/notes/{id}/folder": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Records"
+                ],
+                "summary": "移动便签到分类",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Note ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Move Note Request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_handlers.MoveNoteRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/vocalin-backend_internal_response.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/internal_handlers.NoteResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/records/notes/{id}/visibility": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Records"
+                ],
+                "summary": "更新便签可见性",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Note ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Update Note Visibility Request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_handlers.UpdateNoteVisibilityRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/vocalin-backend_internal_response.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/internal_handlers.NoteResponse"
+                                        }
+                                    }
+                                }
+                            ]
                         }
                     }
                 }
@@ -1908,6 +2209,18 @@ const docTemplate = `{
                 }
             }
         },
+        "internal_handlers.CreateNoteFolderRequest": {
+            "type": "object",
+            "required": [
+                "name"
+            ],
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "maxLength": 100
+                }
+            }
+        },
         "internal_handlers.CreateNoteRequest": {
             "type": "object",
             "required": [
@@ -1920,8 +2233,10 @@ const docTemplate = `{
                     "maxLength": 20
                 },
                 "content": {
-                    "type": "string",
-                    "maxLength": 1000
+                    "type": "string"
+                },
+                "folder_id": {
+                    "type": "integer"
                 },
                 "show_at": {
                     "type": "string"
@@ -2212,6 +2527,34 @@ const docTemplate = `{
                 }
             }
         },
+        "internal_handlers.MoveNoteRequest": {
+            "type": "object",
+            "properties": {
+                "folder_id": {
+                    "type": "integer"
+                }
+            }
+        },
+        "internal_handlers.NoteFolderResponse": {
+            "type": "object",
+            "properties": {
+                "deletable": {
+                    "type": "boolean"
+                },
+                "editable": {
+                    "type": "boolean"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string"
+                }
+            }
+        },
         "internal_handlers.NoteResponse": {
             "type": "object",
             "properties": {
@@ -2233,6 +2576,15 @@ const docTemplate = `{
                 "deletedAt": {
                     "$ref": "#/definitions/gorm.DeletedAt"
                 },
+                "folder_id": {
+                    "type": "integer"
+                },
+                "folder_name": {
+                    "type": "string"
+                },
+                "folder_type": {
+                    "type": "string"
+                },
                 "group_id": {
                     "type": "integer"
                 },
@@ -2246,7 +2598,6 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "type": {
-                    "description": "\"normal\", \"burn\", \"timed\"",
                     "type": "string"
                 },
                 "updatedAt": {
@@ -2425,6 +2776,18 @@ const docTemplate = `{
                 }
             }
         },
+        "internal_handlers.UpdateNoteFolderRequest": {
+            "type": "object",
+            "required": [
+                "name"
+            ],
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "maxLength": 100
+                }
+            }
+        },
         "internal_handlers.UpdateNoteRequest": {
             "type": "object",
             "required": [
@@ -2437,8 +2800,10 @@ const docTemplate = `{
                     "maxLength": 20
                 },
                 "content": {
-                    "type": "string",
-                    "maxLength": 1000
+                    "type": "string"
+                },
+                "folder_id": {
+                    "type": "integer"
                 },
                 "show_at": {
                     "type": "string"
@@ -2446,6 +2811,21 @@ const docTemplate = `{
                 "type": {
                     "type": "string"
                 },
+                "visibility": {
+                    "type": "string",
+                    "enum": [
+                        "public",
+                        "private"
+                    ]
+                }
+            }
+        },
+        "internal_handlers.UpdateNoteVisibilityRequest": {
+            "type": "object",
+            "required": [
+                "visibility"
+            ],
+            "properties": {
                 "visibility": {
                     "type": "string",
                     "enum": [

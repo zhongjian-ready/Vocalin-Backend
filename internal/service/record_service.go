@@ -26,8 +26,88 @@ type AlbumPhotoInput struct {
 	URL string
 }
 
+type NoteListFilter struct {
+	FolderType string
+	FolderID   *uint
+}
+
 func NewRecordService(store Store, logger *zap.Logger) *RecordService {
 	return &RecordService{baseService: newBaseService(store, logger.Named("record-service"))}
+}
+
+func (s *RecordService) CreateNoteFolder(ctx context.Context, userID uint, name string) (*models.NoteFolder, error) {
+	user, groupID, err := s.currentGroupUser(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	name = strings.TrimSpace(name)
+	if isReservedNoteFolderName(name) {
+		return nil, ErrReservedNoteFolderName
+	}
+	folder := &models.NoteFolder{GroupID: groupID, OwnerID: user.ID, Name: name}
+	if err := s.store.CreateNoteFolder(ctx, folder); err != nil {
+		return nil, fmt.Errorf("create note folder: %w", err)
+	}
+	return folder, nil
+}
+
+func (s *RecordService) UpdateNoteFolder(ctx context.Context, userID, folderID uint, name string) (*models.NoteFolder, error) {
+	_, groupID, err := s.currentGroupUser(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	folder, err := s.store.GetNoteFolderByID(ctx, folderID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrNoteFolderNotFound
+		}
+		return nil, fmt.Errorf("get note folder: %w", err)
+	}
+	if folder.GroupID != groupID || folder.OwnerID != userID {
+		return nil, ErrForbidden
+	}
+	name = strings.TrimSpace(name)
+	if isReservedNoteFolderName(name) {
+		return nil, ErrReservedNoteFolderName
+	}
+	folder.Name = name
+	if err := s.store.SaveNoteFolder(ctx, folder); err != nil {
+		return nil, fmt.Errorf("update note folder: %w", err)
+	}
+	return folder, nil
+}
+
+func (s *RecordService) DeleteNoteFolder(ctx context.Context, userID, folderID uint) error {
+	_, groupID, err := s.currentGroupUser(ctx, userID)
+	if err != nil {
+		return err
+	}
+	folder, err := s.store.GetNoteFolderByID(ctx, folderID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrNoteFolderNotFound
+		}
+		return fmt.Errorf("get note folder: %w", err)
+	}
+	if folder.GroupID != groupID || folder.OwnerID != userID {
+		return ErrForbidden
+	}
+	if err := s.store.DeleteNoteFolder(ctx, folder.ID, userID); err != nil {
+		return fmt.Errorf("delete note folder: %w", err)
+	}
+	return nil
+}
+
+func (s *RecordService) ListNoteFolders(ctx context.Context, userID uint) ([]models.NoteFolder, error) {
+	_, groupID, err := s.currentGroupUser(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	folders, err := s.store.ListNoteFoldersByOwner(ctx, groupID, userID)
+	if err != nil {
+		return nil, fmt.Errorf("list note folders: %w", err)
+	}
+	return folders, nil
 }
 
 func (s *RecordService) CreateAlbum(ctx context.Context, userID uint, title, description, visibility string, photos []AlbumPhotoInput) (*models.Album, error) {
@@ -126,7 +206,7 @@ func (s *RecordService) DeleteAlbum(ctx context.Context, userID, albumID uint) e
 	return nil
 }
 
-func (s *RecordService) CreateNote(ctx context.Context, userID uint, content, color, noteType string, showAt *time.Time, visibility string) (*models.Note, error) {
+func (s *RecordService) CreateNote(ctx context.Context, userID uint, folderID *uint, content, color, noteType string, showAt *time.Time, visibility string) (*models.Note, error) {
 	user, groupID, err := s.currentGroupUser(ctx, userID)
 	if err != nil {
 		return nil, err
@@ -138,15 +218,22 @@ func (s *RecordService) CreateNote(ctx context.Context, userID uint, content, co
 		showAt = nil
 	}
 	showAt = normalizeTimeToLocal(showAt)
+	if _, err := s.validateOwnedNoteFolder(ctx, groupID, user.ID, folderID); err != nil {
+		return nil, err
+	}
 
-	note := &models.Note{GroupID: groupID, AuthorID: user.ID, Content: content, Color: color, Type: noteType, ShowAt: showAt, Visibility: normalizeRecordVisibility(visibility)}
+	note := &models.Note{GroupID: groupID, AuthorID: user.ID, FolderID: folderID, Content: content, Color: color, Type: noteType, ShowAt: showAt, Visibility: normalizeRecordVisibility(visibility)}
 	if err := s.store.CreateNote(ctx, note); err != nil {
 		return nil, fmt.Errorf("create note: %w", err)
 	}
-	return note, nil
+	created, err := s.store.GetNoteByID(ctx, note.ID)
+	if err != nil {
+		return nil, fmt.Errorf("reload note: %w", err)
+	}
+	return created, nil
 }
 
-func (s *RecordService) UpdateNote(ctx context.Context, userID, noteID uint, content, color, noteType string, showAt *time.Time, visibility string) (*models.Note, error) {
+func (s *RecordService) UpdateNote(ctx context.Context, userID, noteID uint, folderID *uint, content, color, noteType string, showAt *time.Time, visibility string) (*models.Note, error) {
 	_, groupID, err := s.currentGroupUser(ctx, userID)
 	if err != nil {
 		return nil, err
@@ -171,23 +258,97 @@ func (s *RecordService) UpdateNote(ctx context.Context, userID, noteID uint, con
 		showAt = nil
 	}
 	showAt = normalizeTimeToLocal(showAt)
+	if _, err := s.validateOwnedNoteFolder(ctx, groupID, userID, folderID); err != nil {
+		return nil, err
+	}
 	note.Content = content
 	note.Color = color
 	note.Type = noteType
 	note.ShowAt = showAt
+	note.FolderID = folderID
 	note.Visibility = normalizeRecordVisibility(visibility)
 	if err := s.store.SaveNote(ctx, note); err != nil {
 		return nil, fmt.Errorf("update note: %w", err)
 	}
-	return note, nil
+	updated, err := s.store.GetNoteByID(ctx, note.ID)
+	if err != nil {
+		return nil, fmt.Errorf("reload note: %w", err)
+	}
+	return updated, nil
 }
 
-func (s *RecordService) ListNotes(ctx context.Context, userID uint, pagination Pagination) (*PaginatedResult[models.Note], error) {
+func (s *RecordService) MoveNoteToFolder(ctx context.Context, userID, noteID uint, folderID *uint) (*models.Note, error) {
+	_, groupID, err := s.currentGroupUser(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	note, err := s.store.GetNoteByID(ctx, noteID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrNoteNotFound
+		}
+		return nil, fmt.Errorf("get note: %w", err)
+	}
+	if note.GroupID != groupID {
+		return nil, ErrForbidden
+	}
+	if note.AuthorID != userID {
+		return nil, ErrForbidden
+	}
+	if _, err := s.validateOwnedNoteFolder(ctx, groupID, userID, folderID); err != nil {
+		return nil, err
+	}
+	note.FolderID = folderID
+	if err := s.store.SaveNote(ctx, note); err != nil {
+		return nil, fmt.Errorf("move note to folder: %w", err)
+	}
+	updated, err := s.store.GetNoteByID(ctx, note.ID)
+	if err != nil {
+		return nil, fmt.Errorf("reload note: %w", err)
+	}
+	return updated, nil
+}
+
+func (s *RecordService) UpdateNoteVisibility(ctx context.Context, userID, noteID uint, visibility string) (*models.Note, error) {
+	_, groupID, err := s.currentGroupUser(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	note, err := s.store.GetNoteByID(ctx, noteID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrNoteNotFound
+		}
+		return nil, fmt.Errorf("get note: %w", err)
+	}
+	if note.GroupID != groupID {
+		return nil, ErrForbidden
+	}
+	if note.AuthorID != userID {
+		return nil, ErrForbidden
+	}
+	note.Visibility = normalizeRecordVisibility(visibility)
+	if err := s.store.SaveNote(ctx, note); err != nil {
+		return nil, fmt.Errorf("update note visibility: %w", err)
+	}
+	updated, err := s.store.GetNoteByID(ctx, note.ID)
+	if err != nil {
+		return nil, fmt.Errorf("reload note: %w", err)
+	}
+	return updated, nil
+}
+
+func (s *RecordService) ListNotes(ctx context.Context, userID uint, pagination Pagination, filter NoteListFilter) (*PaginatedResult[models.Note], error) {
 	user, groupID, err := s.currentGroupUser(ctx, userID)
 	if err != nil {
 		return nil, err
 	}
-	notes, total, err := s.store.ListVisibleNotesByGroup(ctx, groupID, user.ID, time.Now(), pagination.Offset(), pagination.PageSize)
+	if filter.FolderID != nil {
+		if _, err := s.validateOwnedNoteFolder(ctx, groupID, user.ID, filter.FolderID); err != nil {
+			return nil, err
+		}
+	}
+	notes, total, err := s.store.ListVisibleNotesByGroup(ctx, groupID, user.ID, time.Now(), pagination.Offset(), pagination.PageSize, filter.FolderType, filter.FolderID)
 	if err != nil {
 		return nil, fmt.Errorf("list notes: %w", err)
 	}
@@ -217,6 +378,28 @@ func (s *RecordService) DeleteNote(ctx context.Context, userID, noteID uint) err
 		return fmt.Errorf("delete note: %w", err)
 	}
 	return nil
+}
+
+func (s *RecordService) validateOwnedNoteFolder(ctx context.Context, groupID uint, userID uint, folderID *uint) (*models.NoteFolder, error) {
+	if folderID == nil {
+		return nil, nil
+	}
+	folder, err := s.store.GetNoteFolderByID(ctx, *folderID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrNoteFolderNotFound
+		}
+		return nil, fmt.Errorf("get note folder: %w", err)
+	}
+	if folder.GroupID != groupID || folder.OwnerID != userID {
+		return nil, ErrForbidden
+	}
+	return folder, nil
+}
+
+func isReservedNoteFolderName(name string) bool {
+	trimmed := strings.TrimSpace(name)
+	return strings.EqualFold(trimmed, "all") || strings.EqualFold(trimmed, "shared")
 }
 
 func (s *RecordService) CreateWishlist(ctx context.Context, userID uint, content string, priority string, visibility string) (*models.Wishlist, error) {

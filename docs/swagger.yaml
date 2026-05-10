@@ -128,14 +128,23 @@ definitions:
     required:
     - name
     type: object
+  internal_handlers.CreateNoteFolderRequest:
+    properties:
+      name:
+        maxLength: 100
+        type: string
+    required:
+    - name
+    type: object
   internal_handlers.CreateNoteRequest:
     properties:
       color:
         maxLength: 20
         type: string
       content:
-        maxLength: 1000
         type: string
+      folder_id:
+        type: integer
       show_at:
         type: string
       type:
@@ -331,6 +340,24 @@ definitions:
     required:
     - refresh_token
     type: object
+  internal_handlers.MoveNoteRequest:
+    properties:
+      folder_id:
+        type: integer
+    type: object
+  internal_handlers.NoteFolderResponse:
+    properties:
+      deletable:
+        type: boolean
+      editable:
+        type: boolean
+      id:
+        type: integer
+      name:
+        type: string
+      type:
+        type: string
+    type: object
   internal_handlers.NoteResponse:
     properties:
       author:
@@ -345,6 +372,12 @@ definitions:
         type: string
       deletedAt:
         $ref: '#/definitions/gorm.DeletedAt'
+      folder_id:
+        type: integer
+      folder_name:
+        type: string
+      folder_type:
+        type: string
       group_id:
         type: integer
       id:
@@ -354,7 +387,6 @@ definitions:
       show_at:
         type: string
       type:
-        description: '"normal", "burn", "timed"'
         type: string
       updatedAt:
         type: string
@@ -476,14 +508,23 @@ definitions:
     - photos
     - title
     type: object
+  internal_handlers.UpdateNoteFolderRequest:
+    properties:
+      name:
+        maxLength: 100
+        type: string
+    required:
+    - name
+    type: object
   internal_handlers.UpdateNoteRequest:
     properties:
       color:
         maxLength: 20
         type: string
       content:
-        maxLength: 1000
         type: string
+      folder_id:
+        type: integer
       show_at:
         type: string
       type:
@@ -496,6 +537,16 @@ definitions:
     required:
     - content
     - type
+    type: object
+  internal_handlers.UpdateNoteVisibilityRequest:
+    properties:
+      visibility:
+        enum:
+        - public
+        - private
+        type: string
+    required:
+    - visibility
     type: object
   internal_handlers.UpdatePinnedMessageRequest:
     properties:
@@ -1472,6 +1523,106 @@ paths:
       summary: 编辑相册
       tags:
       - Records
+  /records/note-folders:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/vocalin-backend_internal_response.APIResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/internal_handlers.NoteFolderResponse'
+                  type: array
+              type: object
+      security:
+      - BearerAuth: []
+      summary: 获取便签分类列表
+      tags:
+      - Records
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Create Note Folder Request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_handlers.CreateNoteFolderRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/vocalin-backend_internal_response.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/internal_handlers.NoteFolderResponse'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: 创建便签分类
+      tags:
+      - Records
+  /records/note-folders/{id}:
+    delete:
+      parameters:
+      - description: Note Folder ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/vocalin-backend_internal_response.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: 删除便签分类
+      tags:
+      - Records
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: Note Folder ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Update Note Folder Request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_handlers.UpdateNoteFolderRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/vocalin-backend_internal_response.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/internal_handlers.NoteFolderResponse'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: 编辑便签分类
+      tags:
+      - Records
   /records/notes:
     get:
       parameters:
@@ -1482,6 +1633,14 @@ paths:
       - description: 每页条数，最大 100
         in: query
         name: page_size
+        type: integer
+      - description: 分类过滤：all、shared、custom
+        in: query
+        name: folder_type
+        type: string
+      - description: 自定义分类 ID，传入后精确过滤该分类
+        in: query
+        name: folder_id
         type: integer
       produces:
       - application/json
@@ -1581,6 +1740,72 @@ paths:
       security:
       - BearerAuth: []
       summary: 编辑便签
+      tags:
+      - Records
+  /records/notes/{id}/folder:
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: Note ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Move Note Request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_handlers.MoveNoteRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/vocalin-backend_internal_response.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/internal_handlers.NoteResponse'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: 移动便签到分类
+      tags:
+      - Records
+  /records/notes/{id}/visibility:
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: Note ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Update Note Visibility Request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_handlers.UpdateNoteVisibilityRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/vocalin-backend_internal_response.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/internal_handlers.NoteResponse'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: 更新便签可见性
       tags:
       - Records
   /records/wishlist:

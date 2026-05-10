@@ -127,6 +127,45 @@ func TestRecordHandlerCreateTimedNoteNormalizesShowAtToChinaTimezone(t *testing.
 	}
 }
 
+func TestRecordHandlerCreateNoteAcceptsLongContent(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	handler, store := newTestRecordHandler(t)
+	ctx := context.Background()
+	user := createRecordTestUser(t, store, ctx, "record-handler-long-note-user", "record-handler-long-note-user", "13800138216")
+	createRecordTestGroup(t, store, ctx, user, "record-handler-long-note-group", "NOTE16")
+
+	content := strings.Repeat("长文本note", 400)
+	body := bytes.NewBufferString(`{"content":` + strconv.Quote(content) + `,"color":"#fff","type":"normal"}`)
+	recorder := httptest.NewRecorder()
+	ginContext, _ := gin.CreateTestContext(recorder)
+	ginContext.Request = httptest.NewRequest(http.MethodPost, "/api/records/notes", body)
+	ginContext.Request.Header.Set("Content-Type", "application/json")
+	ginContext.Set(userIDContextKey, user.ID)
+
+	handler.CreateNote(ginContext)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d, body=%s", http.StatusOK, recorder.Code, recorder.Body.String())
+	}
+
+	var resp response.APIResponse
+	if err := json.Unmarshal(recorder.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal response: %v", err)
+	}
+
+	data, ok := resp.Data.(map[string]any)
+	if !ok {
+		t.Fatalf("expected object data, got %#v", resp.Data)
+	}
+	if data["content"] != content {
+		t.Fatalf("expected long content to round-trip, got %#v", data["content"])
+	}
+	if len(content) <= 1000 {
+		t.Fatalf("expected test content to exceed 1000 chars, got %d", len(content))
+	}
+}
+
 func TestRecordHandlerDeleteNote(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
@@ -164,6 +203,184 @@ func TestRecordHandlerDeleteNote(t *testing.T) {
 
 	if _, err := store.GetNoteByID(ctx, note.ID); err == nil {
 		t.Fatal("expected note to be deleted")
+	}
+}
+
+func TestRecordHandlerGetNotesReturnsFolderTypeForViewer(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	handler, store := newTestRecordHandler(t)
+	ctx := context.Background()
+	owner := createRecordTestUser(t, store, ctx, "record-handler-notes-owner", "record-handler-notes-owner", "13800138210")
+	viewer := createRecordTestUser(t, store, ctx, "record-handler-notes-viewer", "record-handler-notes-viewer", "13800138211")
+	group := createRecordTestGroup(t, store, ctx, owner, "record-handler-notes-group", "NOTE14")
+	if err := store.AddUserToGroup(ctx, viewer, group.ID); err != nil {
+		t.Fatalf("add viewer to group: %v", err)
+	}
+	folder := &models.NoteFolder{GroupID: group.ID, OwnerID: owner.ID, Name: "Trips"}
+	if err := store.CreateNoteFolder(ctx, folder); err != nil {
+		t.Fatalf("create note folder: %v", err)
+	}
+	note := &models.Note{GroupID: group.ID, AuthorID: owner.ID, FolderID: &folder.ID, Content: "shared note", Type: "normal", Visibility: "public"}
+	if err := store.CreateNote(ctx, note); err != nil {
+		t.Fatalf("create note: %v", err)
+	}
+
+	recorder := httptest.NewRecorder()
+	ginContext, _ := gin.CreateTestContext(recorder)
+	ginContext.Request = httptest.NewRequest(http.MethodGet, "/api/records/notes", nil)
+	ginContext.Set(userIDContextKey, viewer.ID)
+
+	handler.GetNotes(ginContext)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d, body=%s", http.StatusOK, recorder.Code, recorder.Body.String())
+	}
+
+	var resp response.APIResponse
+	if err := json.Unmarshal(recorder.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal response: %v", err)
+	}
+	items, ok := resp.Data.([]any)
+	if !ok || len(items) != 1 {
+		t.Fatalf("expected one note item, got %#v", resp.Data)
+	}
+	item, ok := items[0].(map[string]any)
+	if !ok {
+		t.Fatalf("expected note object, got %#v", items[0])
+	}
+	if item["folder_type"] != "shared" {
+		t.Fatalf("expected folder_type shared, got %#v", item["folder_type"])
+	}
+	if _, exists := item["folder_id"]; exists {
+		t.Fatalf("expected shared note to omit folder_id, got %#v", item["folder_id"])
+	}
+}
+
+func TestRecordHandlerGetNotesFiltersByFolderID(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	handler, store := newTestRecordHandler(t)
+	ctx := context.Background()
+	user := createRecordTestUser(t, store, ctx, "record-handler-folder-filter-user", "record-handler-folder-filter-user", "13800138212")
+	group := createRecordTestGroup(t, store, ctx, user, "record-handler-folder-filter-group", "NOTE16")
+	folderA := &models.NoteFolder{GroupID: group.ID, OwnerID: user.ID, Name: "A"}
+	folderB := &models.NoteFolder{GroupID: group.ID, OwnerID: user.ID, Name: "B"}
+	if err := store.CreateNoteFolder(ctx, folderA); err != nil {
+		t.Fatalf("create note folder A: %v", err)
+	}
+	if err := store.CreateNoteFolder(ctx, folderB); err != nil {
+		t.Fatalf("create note folder B: %v", err)
+	}
+	if err := store.CreateNote(ctx, &models.Note{GroupID: group.ID, AuthorID: user.ID, FolderID: &folderA.ID, Content: "note A", Type: "normal", Visibility: "public"}); err != nil {
+		t.Fatalf("create note A: %v", err)
+	}
+	if err := store.CreateNote(ctx, &models.Note{GroupID: group.ID, AuthorID: user.ID, FolderID: &folderB.ID, Content: "note B", Type: "normal", Visibility: "public"}); err != nil {
+		t.Fatalf("create note B: %v", err)
+	}
+
+	recorder := httptest.NewRecorder()
+	ginContext, _ := gin.CreateTestContext(recorder)
+	ginContext.Request = httptest.NewRequest(http.MethodGet, "/api/records/notes?folder_id="+strconv.FormatUint(uint64(folderA.ID), 10), nil)
+	ginContext.Set(userIDContextKey, user.ID)
+
+	handler.GetNotes(ginContext)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d, body=%s", http.StatusOK, recorder.Code, recorder.Body.String())
+	}
+
+	var resp response.APIResponse
+	if err := json.Unmarshal(recorder.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal response: %v", err)
+	}
+	items, ok := resp.Data.([]any)
+	if !ok || len(items) != 1 {
+		t.Fatalf("expected one note item, got %#v", resp.Data)
+	}
+	item, ok := items[0].(map[string]any)
+	if !ok {
+		t.Fatalf("expected note object, got %#v", items[0])
+	}
+	if item["content"] != "note A" {
+		t.Fatalf("expected note A, got %#v", item["content"])
+	}
+	if item["folder_type"] != "custom" {
+		t.Fatalf("expected folder_type custom, got %#v", item["folder_type"])
+	}
+}
+
+func TestRecordHandlerMoveNoteToFolder(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	handler, store := newTestRecordHandler(t)
+	ctx := context.Background()
+	user := createRecordTestUser(t, store, ctx, "record-handler-move-note-user", "record-handler-move-note-user", "13800138213")
+	group := createRecordTestGroup(t, store, ctx, user, "record-handler-move-note-group", "NOTE18")
+	folder := &models.NoteFolder{GroupID: group.ID, OwnerID: user.ID, Name: "Inbox"}
+	if err := store.CreateNoteFolder(ctx, folder); err != nil {
+		t.Fatalf("create note folder: %v", err)
+	}
+	note := &models.Note{GroupID: group.ID, AuthorID: user.ID, Content: "move me", Type: "normal", Visibility: "private"}
+	if err := store.CreateNote(ctx, note); err != nil {
+		t.Fatalf("create note: %v", err)
+	}
+
+	body := bytes.NewBufferString(`{"folder_id":` + strconv.FormatUint(uint64(folder.ID), 10) + `}`)
+	recorder := httptest.NewRecorder()
+	ginContext, _ := gin.CreateTestContext(recorder)
+	ginContext.Request = httptest.NewRequest(http.MethodPut, "/api/records/notes/1/folder", body)
+	ginContext.Request.Header.Set("Content-Type", "application/json")
+	ginContext.Params = gin.Params{{Key: "id", Value: strconv.FormatUint(uint64(note.ID), 10)}}
+	ginContext.Set(userIDContextKey, user.ID)
+
+	handler.MoveNoteToFolder(ginContext)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d, body=%s", http.StatusOK, recorder.Code, recorder.Body.String())
+	}
+
+	reloaded, err := store.GetNoteByID(ctx, note.ID)
+	if err != nil {
+		t.Fatalf("reload note: %v", err)
+	}
+	if reloaded.FolderID == nil || *reloaded.FolderID != folder.ID {
+		t.Fatalf("expected folder id %d, got %+v", folder.ID, reloaded.FolderID)
+	}
+}
+
+func TestRecordHandlerUpdateNoteVisibility(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	handler, store := newTestRecordHandler(t)
+	ctx := context.Background()
+	user := createRecordTestUser(t, store, ctx, "record-handler-note-visibility-user", "record-handler-note-visibility-user", "13800138214")
+	group := createRecordTestGroup(t, store, ctx, user, "record-handler-note-visibility-group", "NOTE19")
+	note := &models.Note{GroupID: group.ID, AuthorID: user.ID, Content: "share me", Type: "normal", Visibility: "private"}
+	if err := store.CreateNote(ctx, note); err != nil {
+		t.Fatalf("create note: %v", err)
+	}
+
+	body := bytes.NewBufferString(`{"visibility":"public"}`)
+	recorder := httptest.NewRecorder()
+	ginContext, _ := gin.CreateTestContext(recorder)
+	ginContext.Request = httptest.NewRequest(http.MethodPut, "/api/records/notes/1/visibility", body)
+	ginContext.Request.Header.Set("Content-Type", "application/json")
+	ginContext.Params = gin.Params{{Key: "id", Value: strconv.FormatUint(uint64(note.ID), 10)}}
+	ginContext.Set(userIDContextKey, user.ID)
+
+	handler.UpdateNoteVisibility(ginContext)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d, body=%s", http.StatusOK, recorder.Code, recorder.Body.String())
+	}
+
+	reloaded, err := store.GetNoteByID(ctx, note.ID)
+	if err != nil {
+		t.Fatalf("reload note: %v", err)
+	}
+	if reloaded.Visibility != "public" {
+		t.Fatalf("expected public visibility, got %q", reloaded.Visibility)
 	}
 }
 

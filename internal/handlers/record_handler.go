@@ -1,7 +1,9 @@
 package handlers
 
 import (
+	"fmt"
 	"strconv"
+	"strings"
 	"time"
 	"vocalin-backend/internal/models"
 	"vocalin-backend/internal/response"
@@ -35,7 +37,30 @@ type AlbumPhotoResponse struct {
 	URL        string `json:"url"`
 }
 
-type NoteResponse = models.Note
+type NoteResponse struct {
+	gorm.Model
+	GroupID    uint        `json:"group_id"`
+	AuthorID   uint        `json:"author_id"`
+	FolderID   *uint       `json:"folder_id,omitempty"`
+	FolderName string      `json:"folder_name,omitempty"`
+	FolderType string      `json:"folder_type"`
+	Content    string      `json:"content"`
+	Color      string      `json:"color"`
+	Type       string      `json:"type"`
+	ShowAt     *time.Time  `json:"show_at"`
+	Visibility string      `json:"visibility"`
+	IsBurned   bool        `json:"is_burned"`
+	Author     models.User `json:"author"`
+}
+
+type NoteFolderResponse struct {
+	ID        uint   `json:"id"`
+	Name      string `json:"name"`
+	Type      string `json:"type"`
+	Editable  bool   `json:"editable"`
+	Deletable bool   `json:"deletable"`
+}
+
 type WishlistResponse = models.Wishlist
 
 type AlbumPhotoRequest struct {
@@ -50,11 +75,24 @@ type CreateAlbumRequest struct {
 }
 
 type CreateNoteRequest struct {
-	Content    string     `json:"content" binding:"required,max=1000"`
+	FolderID   *uint      `json:"folder_id"`
+	Content    string     `json:"content" binding:"required"`
 	Color      string     `json:"color" binding:"max=20"`
 	Type       string     `json:"type" binding:"required,note_type"`
 	ShowAt     *time.Time `json:"show_at"`
 	Visibility string     `json:"visibility" binding:"omitempty,oneof=public private"`
+}
+
+type CreateNoteFolderRequest struct {
+	Name string `json:"name" binding:"required,max=100"`
+}
+
+type MoveNoteRequest struct {
+	FolderID *uint `json:"folder_id"`
+}
+
+type UpdateNoteVisibilityRequest struct {
+	Visibility string `json:"visibility" binding:"required,oneof=public private"`
 }
 
 type CreateWishlistRequest struct {
@@ -66,6 +104,8 @@ type CreateWishlistRequest struct {
 type UpdateAlbumRequest = CreateAlbumRequest
 
 type UpdateNoteRequest = CreateNoteRequest
+
+type UpdateNoteFolderRequest = CreateNoteFolderRequest
 
 type UpdateWishlistRequest = CreateWishlistRequest
 
@@ -189,13 +229,13 @@ func (h *RecordHandler) CreateNote(c *gin.Context) {
 		return
 	}
 
-	note, err := h.recordService.CreateNote(c.Request.Context(), currentUserID(c), req.Content, req.Color, req.Type, req.ShowAt, req.Visibility)
+	note, err := h.recordService.CreateNote(c.Request.Context(), currentUserID(c), req.FolderID, req.Content, req.Color, req.Type, req.ShowAt, req.Visibility)
 	if err != nil {
 		writeServiceError(c, err)
 		return
 	}
 
-	response.Success(c, "创建便签成功", note)
+	response.Success(c, "创建便签成功", toNoteResponse(note, currentUserID(c)))
 }
 
 // UpdateNote godoc
@@ -221,13 +261,13 @@ func (h *RecordHandler) UpdateNote(c *gin.Context) {
 		return
 	}
 
-	note, err := h.recordService.UpdateNote(c.Request.Context(), currentUserID(c), uint(noteID), req.Content, req.Color, req.Type, req.ShowAt, req.Visibility)
+	note, err := h.recordService.UpdateNote(c.Request.Context(), currentUserID(c), uint(noteID), req.FolderID, req.Content, req.Color, req.Type, req.ShowAt, req.Visibility)
 	if err != nil {
 		writeServiceError(c, err)
 		return
 	}
 
-	response.Success(c, "更新便签成功", note)
+	response.Success(c, "更新便签成功", toNoteResponse(note, currentUserID(c)))
 }
 
 // GetNotes godoc
@@ -237,17 +277,24 @@ func (h *RecordHandler) UpdateNote(c *gin.Context) {
 // @Security BearerAuth
 // @Param page query int false "页码，从 1 开始"
 // @Param page_size query int false "每页条数，最大 100"
+// @Param folder_type query string false "分类过滤：all、shared、custom"
+// @Param folder_id query int false "自定义分类 ID，传入后精确过滤该分类"
 // @Success 200 {object} response.APIResponse{data=[]NoteResponse,meta=response.PaginationMeta}
 // @Router /records/notes [get]
 func (h *RecordHandler) GetNotes(c *gin.Context) {
 	page, pageSize := parsePagination(c)
-	notes, err := h.recordService.ListNotes(c.Request.Context(), currentUserID(c), service.NewPagination(page, pageSize))
+	filter, err := parseNoteListFilter(c)
+	if err != nil {
+		response.Error(c, 400, "VALIDATION_ERROR", err.Error())
+		return
+	}
+	notes, err := h.recordService.ListNotes(c.Request.Context(), currentUserID(c), service.NewPagination(page, pageSize), filter)
 	if err != nil {
 		writeServiceError(c, err)
 		return
 	}
 
-	response.JSON(c, 200, "SUCCESS", "获取便签列表成功", notes.Items, response.NewPaginationMeta(notes.Page, notes.PageSize, notes.Total))
+	response.JSON(c, 200, "SUCCESS", "获取便签列表成功", toNoteResponses(notes.Items, currentUserID(c)), response.NewPaginationMeta(notes.Page, notes.PageSize, notes.Total))
 }
 
 // DeleteNote godoc
@@ -271,6 +318,167 @@ func (h *RecordHandler) DeleteNote(c *gin.Context) {
 	}
 
 	response.Success(c, "删除便签成功", nil)
+}
+
+// MoveNoteToFolder godoc
+// @Summary 移动便签到分类
+// @Tags Records
+// @Accept json
+// @Produce json
+// @Param id path int true "Note ID"
+// @Param request body MoveNoteRequest true "Move Note Request"
+// @Security BearerAuth
+// @Success 200 {object} response.APIResponse{data=NoteResponse}
+// @Router /records/notes/{id}/folder [put]
+func (h *RecordHandler) MoveNoteToFolder(c *gin.Context) {
+	noteID, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		response.Error(c, 400, "VALIDATION_ERROR", "无效的便签 ID")
+		return
+	}
+
+	var req MoveNoteRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		writeBindError(c, err)
+		return
+	}
+
+	note, err := h.recordService.MoveNoteToFolder(c.Request.Context(), currentUserID(c), uint(noteID), req.FolderID)
+	if err != nil {
+		writeServiceError(c, err)
+		return
+	}
+
+	response.Success(c, "移动便签分类成功", toNoteResponse(note, currentUserID(c)))
+}
+
+// UpdateNoteVisibility godoc
+// @Summary 更新便签可见性
+// @Tags Records
+// @Accept json
+// @Produce json
+// @Param id path int true "Note ID"
+// @Param request body UpdateNoteVisibilityRequest true "Update Note Visibility Request"
+// @Security BearerAuth
+// @Success 200 {object} response.APIResponse{data=NoteResponse}
+// @Router /records/notes/{id}/visibility [put]
+func (h *RecordHandler) UpdateNoteVisibility(c *gin.Context) {
+	noteID, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		response.Error(c, 400, "VALIDATION_ERROR", "无效的便签 ID")
+		return
+	}
+
+	var req UpdateNoteVisibilityRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		writeBindError(c, err)
+		return
+	}
+
+	note, err := h.recordService.UpdateNoteVisibility(c.Request.Context(), currentUserID(c), uint(noteID), req.Visibility)
+	if err != nil {
+		writeServiceError(c, err)
+		return
+	}
+
+	response.Success(c, "更新便签可见性成功", toNoteResponse(note, currentUserID(c)))
+}
+
+// CreateNoteFolder godoc
+// @Summary 创建便签分类
+// @Tags Records
+// @Accept json
+// @Produce json
+// @Param request body CreateNoteFolderRequest true "Create Note Folder Request"
+// @Security BearerAuth
+// @Success 200 {object} response.APIResponse{data=NoteFolderResponse}
+// @Router /records/note-folders [post]
+func (h *RecordHandler) CreateNoteFolder(c *gin.Context) {
+	var req CreateNoteFolderRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		writeBindError(c, err)
+		return
+	}
+
+	folder, err := h.recordService.CreateNoteFolder(c.Request.Context(), currentUserID(c), req.Name)
+	if err != nil {
+		writeServiceError(c, err)
+		return
+	}
+
+	response.Success(c, "创建便签分类成功", toNoteFolderResponse(folder))
+}
+
+// UpdateNoteFolder godoc
+// @Summary 编辑便签分类
+// @Tags Records
+// @Accept json
+// @Produce json
+// @Param id path int true "Note Folder ID"
+// @Param request body UpdateNoteFolderRequest true "Update Note Folder Request"
+// @Security BearerAuth
+// @Success 200 {object} response.APIResponse{data=NoteFolderResponse}
+// @Router /records/note-folders/{id} [put]
+func (h *RecordHandler) UpdateNoteFolder(c *gin.Context) {
+	folderID, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		response.Error(c, 400, "VALIDATION_ERROR", "无效的便签分类 ID")
+		return
+	}
+
+	var req UpdateNoteFolderRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		writeBindError(c, err)
+		return
+	}
+
+	folder, err := h.recordService.UpdateNoteFolder(c.Request.Context(), currentUserID(c), uint(folderID), req.Name)
+	if err != nil {
+		writeServiceError(c, err)
+		return
+	}
+
+	response.Success(c, "更新便签分类成功", toNoteFolderResponse(folder))
+}
+
+// DeleteNoteFolder godoc
+// @Summary 删除便签分类
+// @Tags Records
+// @Produce json
+// @Param id path int true "Note Folder ID"
+// @Security BearerAuth
+// @Success 200 {object} response.APIResponse
+// @Router /records/note-folders/{id} [delete]
+func (h *RecordHandler) DeleteNoteFolder(c *gin.Context) {
+	folderID, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		response.Error(c, 400, "VALIDATION_ERROR", "无效的便签分类 ID")
+		return
+	}
+
+	if err := h.recordService.DeleteNoteFolder(c.Request.Context(), currentUserID(c), uint(folderID)); err != nil {
+		writeServiceError(c, err)
+		return
+	}
+
+	response.Success(c, "删除便签分类成功", nil)
+}
+
+// GetNoteFolders godoc
+// @Summary 获取便签分类列表
+// @Tags Records
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} response.APIResponse{data=[]NoteFolderResponse}
+// @Router /records/note-folders [get]
+func (h *RecordHandler) GetNoteFolders(c *gin.Context) {
+	folders, err := h.recordService.ListNoteFolders(c.Request.Context(), currentUserID(c))
+	if err != nil {
+		writeServiceError(c, err)
+		return
+	}
+
+	response.Success(c, "获取便签分类成功", toNoteFolderResponses(folders))
 }
 
 // CreateWishlist godoc
@@ -431,6 +639,82 @@ func toAlbumPhotoInputs(photos []AlbumPhotoRequest) []service.AlbumPhotoInput {
 		})
 	}
 	return inputs
+}
+
+func parseNoteListFilter(c *gin.Context) (service.NoteListFilter, error) {
+	filter := service.NoteListFilter{FolderType: strings.TrimSpace(strings.ToLower(c.Query("folder_type")))}
+	if filter.FolderType != "" && filter.FolderType != "all" && filter.FolderType != "shared" && filter.FolderType != "custom" {
+		return service.NoteListFilter{}, fmt.Errorf("folder_type 仅支持 all、shared、custom")
+	}
+
+	folderIDParam := strings.TrimSpace(c.Query("folder_id"))
+	if folderIDParam == "" {
+		return filter, nil
+	}
+
+	parsed, err := strconv.ParseUint(folderIDParam, 10, 64)
+	if err != nil || parsed == 0 {
+		return service.NoteListFilter{}, fmt.Errorf("folder_id 必须为有效的正整数")
+	}
+	folderID := uint(parsed)
+	filter.FolderID = &folderID
+	return filter, nil
+}
+
+func toNoteResponses(notes []models.Note, viewerID uint) []NoteResponse {
+	items := make([]NoteResponse, 0, len(notes))
+	for _, note := range notes {
+		items = append(items, toNoteResponse(&note, viewerID))
+	}
+	return items
+}
+
+func toNoteResponse(note *models.Note, viewerID uint) NoteResponse {
+	item := NoteResponse{
+		Model: gorm.Model{
+			ID:        note.ID,
+			CreatedAt: note.CreatedAt,
+			UpdatedAt: note.UpdatedAt,
+			DeletedAt: note.DeletedAt,
+		},
+		GroupID:    note.GroupID,
+		AuthorID:   note.AuthorID,
+		Content:    note.Content,
+		Color:      note.Color,
+		Type:       note.Type,
+		ShowAt:     note.ShowAt,
+		Visibility: note.Visibility,
+		IsBurned:   note.IsBurned,
+		Author:     note.Author,
+	}
+
+	if note.AuthorID != viewerID {
+		item.FolderType = "shared"
+		return item
+	}
+	if note.FolderID != nil && note.Folder != nil {
+		item.FolderID = note.FolderID
+		item.FolderName = note.Folder.Name
+		item.FolderType = "custom"
+		return item
+	}
+	item.FolderType = "all"
+	return item
+}
+
+func toNoteFolderResponses(folders []models.NoteFolder) []NoteFolderResponse {
+	items := []NoteFolderResponse{
+		{ID: 0, Name: "All", Type: "all", Editable: false, Deletable: false},
+		{ID: 0, Name: "Shared", Type: "shared", Editable: false, Deletable: false},
+	}
+	for _, folder := range folders {
+		items = append(items, toNoteFolderResponse(&folder))
+	}
+	return items
+}
+
+func toNoteFolderResponse(folder *models.NoteFolder) NoteFolderResponse {
+	return NoteFolderResponse{ID: folder.ID, Name: folder.Name, Type: "custom", Editable: true, Deletable: true}
 }
 
 func toAlbumResponses(albums []models.Album) []AlbumResponse {

@@ -55,11 +55,16 @@ type Store interface {
 	ReplaceAlbumPhotos(ctx context.Context, albumID uint, photos []models.Photo) error
 	DeleteAlbum(ctx context.Context, id uint) error
 	ListAlbumsByGroup(ctx context.Context, groupID uint, viewerID uint, offset int, limit int) ([]models.Album, int64, error)
+	CreateNoteFolder(ctx context.Context, folder *models.NoteFolder) error
+	GetNoteFolderByID(ctx context.Context, id uint) (*models.NoteFolder, error)
+	SaveNoteFolder(ctx context.Context, folder *models.NoteFolder) error
+	DeleteNoteFolder(ctx context.Context, id uint, ownerID uint) error
+	ListNoteFoldersByOwner(ctx context.Context, groupID uint, ownerID uint) ([]models.NoteFolder, error)
 	CreateNote(ctx context.Context, note *models.Note) error
 	GetNoteByID(ctx context.Context, id uint) (*models.Note, error)
 	SaveNote(ctx context.Context, note *models.Note) error
 	DeleteNote(ctx context.Context, id uint) error
-	ListVisibleNotesByGroup(ctx context.Context, groupID uint, viewerID uint, now time.Time, offset int, limit int) ([]models.Note, int64, error)
+	ListVisibleNotesByGroup(ctx context.Context, groupID uint, viewerID uint, now time.Time, offset int, limit int, folderType string, folderID *uint) ([]models.Note, int64, error)
 	CreateWishlistItem(ctx context.Context, item *models.Wishlist) error
 	ListWishlistByGroup(ctx context.Context, groupID uint, viewerID uint, offset int, limit int) ([]models.Wishlist, int64, error)
 	GetWishlistItemByID(ctx context.Context, id uint) (*models.Wishlist, error)
